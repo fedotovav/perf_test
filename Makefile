@@ -1,21 +1,24 @@
-BIN_DIR = bin
-OBJ_DIR = obj
+BIN_DIR      = bin
+OBJ_DIR      = obj
+TEST_SRC_DIR = tests_src
 
 TARGET = perf_test
 
-CU_SRCS = compute_cu.cu
-GF_SRCS = compute_f.f08
-CPP_SRCS = compute_ocl.cpp main.cpp
+CU_TEST_SRCS  = $(addprefix $(TEST_SRC_DIR)/, compute_cu.cu)
+OMP_TEST_SRCS = $(addprefix $(TEST_SRC_DIR)/, compute_f.f08)
+OCL_TEST_SRC  = $(addprefix $(TEST_SRC_DIR)/, compute_ocl.cpp)
+CPP_SRCS = test.cpp main.cpp
 
-OBJS  = $(addprefix $(OBJ_DIR)/, $(notdir $(GF_SRCS:.f08=.o)))
-OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CU_SRCS:.cu=.o)))
+OBJS  = $(addprefix $(OBJ_DIR)/, $(notdir $(OMP_TEST_SRCS:.f08=.o)))
+OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CU_TEST_SRCS:.cu=.o)))
+OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(OCL_TEST_SRC:.cpp=.o)))
 OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CPP_SRCS:.cpp=.o)))
 
 GF_FLAGS = -fopenmp -std=f2008 -Ofast 
 CU_FLAGS = -gencode arch=compute_35,code=compute_35 -std=c++11
 CPP_FLAGS = -std=c++11 -Ofast
-LINK_FLAGS = -fopenmp -lstdc++ -lgfortran -L/usr/local/cuda/lib64/ -lcuda -lcudart -lm -lOpenCL
-CPP_INCLUDE = -I/usr/local/cuda/include
+LINK_FLAGS = -fopenmp -lstdc++ -lgfortran -L/usr/local/cuda/lib64/ -lcuda -lcudart -lm -lOpenCL -L/usr/local/lib -lboost_program_options
+CPP_INCLUDE = -I/usr/local/cuda/include -I/usr/local/include
 
 all: dir $(TARGET)
 
@@ -29,10 +32,13 @@ $(TARGET): $(OBJS)
 $(OBJ_DIR)/%.o: %.cpp
 	g++ -c $< -o $@ $(CPP_INCLUDE) $(CPP_FLAGS) 
 
-$(OBJ_DIR)/%.o: %.cu
+$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/%.cpp
+	g++ -c $< -o $@ $(CPP_INCLUDE) $(CPP_FLAGS) 
+
+$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/%.cu
 	/usr/local/cuda/bin/nvcc -c $< -o $@ $(CU_FLAGS)
 
-$(OBJ_DIR)/%.o: %.f08
+$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/%.f08
 	gfortran -c $< -o $@ $(GF_FLAGS)
 
 clean:

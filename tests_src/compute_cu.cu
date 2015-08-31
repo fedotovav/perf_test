@@ -6,7 +6,7 @@
 
 #include <cuda_runtime.h>
 
-#include "test.h"
+#include "../test.h"
 
 using namespace std;
 
