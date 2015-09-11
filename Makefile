@@ -1,6 +1,7 @@
 BIN_DIR      = bin
 OBJ_DIR      = obj
-TEST_SRC_DIR = tests_src
+TEST_SRC_DIR = tests
+MAT_MUL_SRC_DIR = mat_mul_test
 
 TARGET = perf_test
 
@@ -30,17 +31,20 @@ dir:
 
 $(TARGET): $(OBJS)
 	gcc -o $(BIN_DIR)/$(TARGET) $(OBJS) $(LINK_FLAGS)
- 
+
 $(OBJ_DIR)/%.o: %.cpp
 	g++ -c $< -o $@ $(CPP_INCLUDE) $(CPP_FLAGS) 
 
 $(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/%.cpp
 	g++ -c $< -o $@ $(CPP_INCLUDE) $(CPP_FLAGS) 
 
-$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/%.cu
+$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(MAT_MUL_SRC_DIR)/%.cpp
+	g++ -c $< -o $@ $(CPP_INCLUDE) $(CPP_FLAGS) 
+
+$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(MAT_MUL_SRC_DIR)/%.cu
 	/usr/local/cuda/bin/nvcc -c $< -o $@ $(CU_FLAGS)
 
-$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/%.f08
+$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(MAT_MUL_SRC_DIR)/%.f08
 	gfortran -c $< -o $@ $(GF_FLAGS)
 
 clean:

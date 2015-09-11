@@ -1,11 +1,5 @@
 #include "test.h"
 
-extern "C"
-{
-   int compare_2_matr( int size, const double * a, const double * b, double * max_diff, int * max_diff_idx );
-   int fill_2_matr   ( int size, const double * a, const double * b );
-}
-
 test_unit_t::test_unit_t( const string & test_name, const calc_func_t & func, const string & output_file_name
                          ,const string & cmd_line_par_name, int is_golden_test ) :
      test_name_        (test_name)
@@ -36,12 +30,18 @@ int test_unit_t::is_golden_test() const
    return is_golden_test_;
 }
 
-test_t::test_t( int argc, char ** argv, test_units_t tests ) :
-     max_matr_size_   (0)
-   , matr_size_limit_ (0)
-   , measurement_cnt_ (0)
-   , output_file_name_("default")
-   , goloden_test_idx_(-1)
+test_t::test_t( int argc, char ** argv, const string & test_name, test_units_t tests, size_func_t size_func
+               ,print_test_info_func_t print_test_info_func, prepare_date_func_t prepare_date_func ) :
+     max_data_size_       (0)
+   , matr_size_limit_     (0)
+   , measurement_cnt_     (0)
+   , output_file_name_    ("default")
+   , goloden_test_idx_    (-1)
+   , test_name_           (test_name)
+   , size_func_           (size_func)
+   , print_test_info_func_(print_test_info_func)
+   , prepare_date_func_   (prepare_date_func)
+
 {
    po::options_description head_description("Computing technologies performance test\n Author: Anton Fedotov");
 
@@ -50,7 +50,7 @@ test_t::test_t( int argc, char ** argv, test_units_t tests ) :
    ("help,h", "show help")
    ("measurement-cnt,c", po::value<size_t>(&measurement_cnt_), "set measurement count")
    ("output-file,o", po::value<string>(&output_file_name_), "test result output file name")
-   ("max-matr-size,s", po::value<size_t>(&max_matr_size_), "maximum matrix size");
+   ("max-matr-size,s", po::value<size_t>(&max_data_size_), "maximum matrix size");
 
    po::options_description tests_options("Available tests");
 
@@ -95,10 +95,14 @@ test_t::test_t( int argc, char ** argv, test_units_t tests ) :
 
       throw;
    }
+
+   size_t tests_cnt = tests_->size();
+   
+   int test_exist = 1;
    
    if (vm.count("all-tests-units"))
    {
-      for (size_t i = 0; i < tests_.get()->size(); ++i)
+      for (size_t i = 0; i < tests_cnt; ++i)
       {
          if (tests_->at(i).is_golden_test())
          {
@@ -114,22 +118,33 @@ test_t::test_t( int argc, char ** argv, test_units_t tests ) :
       }
    }
    else
-      for (size_t i = 0; i < tests.get()->size(); ++i)
+      for (size_t i = 0, cur_test_idx = 0; i < tests_cnt; ++i)
       {
-         if (!vm.count(tests->at(i).cmd_line_par()))
-            tests_->erase(tests_->begin() + i);
-
-         if (tests->at(i).is_golden_test())
+         if (!vm.count(tests->at(cur_test_idx).cmd_line_par()))
          {
-            if (goloden_test_idx_ < 0)
-               goloden_test_idx_ = i;
-            else
-            {
-               cerr << "Alredy have golden test: (" << tests->at(goloden_test_idx_).name() << ")" << endl;
+            tests_->erase(tests_->begin() + cur_test_idx);
 
-               throw "Golden test set error";
-            }
+            test_exist = 0;
          }
+
+         if (test_exist)
+         {
+            if (tests->at(cur_test_idx).is_golden_test())
+            {
+               if (goloden_test_idx_ < 0)
+                  goloden_test_idx_ = i;
+               else
+               {
+                  cerr << "Alredy have golden test: (" << tests->at(goloden_test_idx_).name() << ")" << endl;
+
+                  throw "Golden test set error";
+               }
+            }
+            
+            cur_test_idx++;
+         }
+         
+         test_exist = 1;
       }
    
    if (!tests_->size())
@@ -148,6 +163,8 @@ test_t::test_t( int argc, char ** argv, test_units_t tests ) :
       throw "Golden test set error";
    }
 }
+
+extern "C" int compare_2_arrays( int size, const double * a, const double * b, double * max_diff, int * max_diff_idx );
 
 // return max difference
 double compare_res( const test_units_t tests, int size, int golden_test_idx )
@@ -174,7 +191,7 @@ double compare_res( const test_units_t tests, int size, int golden_test_idx )
       for (int i = 0; i < size * size; ++i)
          input_file >> other_res[i];
 
-      compare_2_matr(size, ideal_res, other_res, &max_diff, &max_diff_idx);
+      compare_2_arrays(size * size, ideal_res, other_res, &max_diff, &max_diff_idx);
 
       if (max_diff != 0)
       {
@@ -193,24 +210,25 @@ double compare_res( const test_units_t tests, int size, int golden_test_idx )
    delete[] other_res;
 }
 
-void write_matr_to_file( ofstream & output_file, const double * matr, int size )
+void write_data_to_file( ofstream & output_file, const double * data, int size )
 {
    for (int i = 0; i < size; ++i)
    {
       for (int j = 0; j < size; ++j)
-         output_file << matr[i] << " ";
+         output_file << data[i] << " ";
       
       output_file << endl;
    }
 }
 
-void remove_tmp_files( const vector<test_unit_t> & tests )
+void remove_tmp_files( const test_units_t tests )
 {
-   for (size_t i = 0; i < tests.size(); ++i)
-      remove(tests[i].check_file().c_str());
+   for (size_t i = 0; i < tests->size(); ++i)
+      if (!tests->at(i).check_file().empty())
+         remove(tests->at(i).check_file().c_str());
 }
 
-void test( const test_units_t tests, const double * a, const double * b, double * c, int size, ofstream & res_file )
+void test( const test_units_t tests, test_data_t matrices, int size, ofstream & res_file )
 {
    res_file << size << "\t";
 
@@ -220,7 +238,7 @@ void test( const test_units_t tests, const double * a, const double * b, double 
    {
       cout << "call " << tests->at(i).name() << endl;
 
-      duration = tests->at(i).calc_func(size, a, b, c);
+      duration = tests->at(i).calc_func(size, (const double *)matrices.get()[0], (const double *)matrices.get()[1], (double *)matrices.get()[2]);
 
       cout << "computation time: " << duration.computing_time_ << " ms" << endl;
       cout << "memory allocation time: " << duration.mem_allocate_time_ << " ms" << endl;
@@ -231,7 +249,7 @@ void test( const test_units_t tests, const double * a, const double * b, double 
       
       ofstream output_file(tests->at(i).check_file());
       
-      write_matr_to_file(output_file, c, size);
+      write_data_to_file(output_file, (double *)matrices.get()[2], size);
       
       output_file.close();
    }
@@ -241,16 +259,6 @@ void test( const test_units_t tests, const double * a, const double * b, double 
 
 void test_t::start()
 {
-   max_matr_size_ -= max_matr_size_ % 32;
-   
-   int   size_incr = max_matr_size_ / measurement_cnt_
-       , size;
-   
-   size_incr -= size_incr % 32;
-   size       = size_incr;
-   
-   int test_idx = 0;
-   
    ofstream result_file(output_file_name_);
    
    result_file << "%% fields: \"size\" ";
@@ -264,32 +272,30 @@ void test_t::start()
       
    chrono::time_point<chrono::system_clock> start_test_time, finish_test_time;
 
-   cout << "============= START GLOBAL TEST =============" << endl << endl;
+   cout << "============= START GLOBAL TEST (" << test_name_ << ") =============" << endl << endl;
 
    start_test_time = chrono::system_clock::now();
    
-   while (size < max_matr_size_ + 1)
+   size_t size = 0;
+   
+   for (size_t test_idx = 0; test_idx < measurement_cnt_; ++test_idx)
    {
       cout << "---------test #" << test_idx << "---------" << endl;
-      cout << "matrix size: " << size << "x" << size << " (" << size * size << " elements, " << sizeof(double) * size * size /  1048576 << " mb)" << endl;
 
-      double  * a = new double[size * size]
-            , * b = new double[size * size]
-            , * c = new double[size * size];
-
-      fill_2_matr(size, a, b);
+      size = size_func_(test_idx, max_data_size_, measurement_cnt_);
       
-      test(tests_, a, b, c, size, result_file);
+      print_test_info_func_(size);
 
-      delete[] a;
-      delete[] b;
-      delete[] c;
+      test_data_t matrices = prepare_date_func_(size);
+      
+      test(tests_, matrices, size, result_file);
+      
+      matrices.reset();
 
       compare_res(tests_, size, goloden_test_idx_);
       
-      //remove_tmp_files(tests_);
+      remove_tmp_files(tests_);
       
-      size += size_incr;
       test_idx++;
       
       cout << endl;
@@ -297,7 +303,7 @@ void test_t::start()
 
    finish_test_time = std::chrono::system_clock::now();
    
-   cout << "============= FINISH GLOBAL TEST =============" << endl;
+   cout << "============= FINISH GLOBAL TEST (" << test_name_ << ") =============" << endl << endl;
    
    size_t hours   = chrono::duration_cast<chrono::hours>  (finish_test_time - start_test_time).count();
    size_t minutes = chrono::duration_cast<chrono::minutes>(finish_test_time - start_test_time).count();

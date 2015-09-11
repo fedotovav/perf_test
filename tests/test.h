@@ -66,20 +66,31 @@ private:
 };
 
 typedef shared_ptr<vector<test_unit_t>> test_units_t;
+typedef shared_ptr<void *>              test_data_t ;
 
 class test_t
 {
 public:
-   test_t( int argc, char ** argv, const test_units_t tests );
+   typedef size_t      (* size_func_t)           ( size_t test_idx, size_t max_data_size, size_t measurement_cnt );
+   typedef void        (* print_test_info_func_t)( size_t size );
+   typedef test_data_t (* prepare_date_func_t)   ( size_t size );
+
+   test_t( int argc, char ** argv, const string & test_name, const test_units_t tests, size_func_t size_func
+          ,print_test_info_func_t print_test_info_func, prepare_date_func_t prepare_date_func );
    
    void start();
    
 private:
    test_units_t tests_;
    
-   string output_file_name_;
+   size_func_t            size_func_;
+   print_test_info_func_t print_test_info_func_;
+   prepare_date_func_t    prepare_date_func_;
+   
+   string   output_file_name_
+          , test_name_;
 
-   size_t   max_matr_size_
+   size_t   max_data_size_
           , matr_size_limit_ // maximum matrix size in bytes
           , measurement_cnt_;
    
