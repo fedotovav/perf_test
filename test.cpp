@@ -7,11 +7,12 @@ extern "C"
 }
 
 test_unit_t::test_unit_t( const string & test_name, const calc_func_t & func, const string & output_file_name
-                         ,const string & cmd_line_par_name ) :
+                         ,const string & cmd_line_par_name, int is_golden_test ) :
      test_name_        (test_name)
    , calc_func         (func)
    , output_file_      (output_file_name)
    , cmd_line_par_name_(cmd_line_par_name)
+   , is_golden_test_   (is_golden_test)
 {
 }
 
@@ -30,11 +31,17 @@ const string & test_unit_t::cmd_line_par() const
    return cmd_line_par_name_;
 }
 
-test_t::test_t( int argc, char ** argv, const vector<test_unit_t> & tests ) :
-     max_matr_size_  (0)
-   , matr_size_limit_(0)
-   , measurement_cnt_(0)
+int test_unit_t::is_golden_test() const
+{
+   return is_golden_test_;
+}
+
+test_t::test_t( int argc, char ** argv, test_units_t tests ) :
+     max_matr_size_   (0)
+   , matr_size_limit_ (0)
+   , measurement_cnt_ (0)
    , output_file_name_("default")
+   , goloden_test_idx_(-1)
 {
    po::options_description head_description("Computing technologies performance test\n Author: Anton Fedotov");
 
@@ -49,8 +56,8 @@ test_t::test_t( int argc, char ** argv, const vector<test_unit_t> & tests ) :
 
    tests_options.add_options()("all-tests-units,all", "do all test units");
 
-   for (size_t i = 0; i < tests.size(); ++i)
-      tests_options.add_options()(tests[i].cmd_line_par().c_str(), "test unit");
+   for (size_t i = 0; i < tests.get()->size(); ++i)
+      tests_options.add_options()(tests->at(i).cmd_line_par().c_str(), "test unit");
    
    head_description.add(general_options).add(tests_options);
    
@@ -80,21 +87,75 @@ test_t::test_t( int argc, char ** argv, const vector<test_unit_t> & tests ) :
       throw head_description;
    }
    
-   if (vm.count("all-tests-units"))
-      tests_.insert(tests_.end(), tests.begin(), tests.end());
+   if (tests)
+      tests_ = tests;
    else
-      for (size_t i = 0; i < tests.size(); ++i)
-         if (vm.count(tests[i].cmd_line_par()))
-            tests_.push_back(tests[i]);
+   {
+      cerr << "No oune test found!" << endl;
+
+      throw;
+   }
+   
+   if (vm.count("all-tests-units"))
+   {
+      for (size_t i = 0; i < tests_.get()->size(); ++i)
+      {
+         if (tests_->at(i).is_golden_test())
+         {
+            if (goloden_test_idx_ < 0)
+               goloden_test_idx_ = i;
+            else
+            {
+               cerr << "Alredy have golden test: (" << tests->at(goloden_test_idx_).name() << ")" << endl;
+
+               throw;
+            }
+         }
+      }
+   }
+   else
+      for (size_t i = 0; i < tests.get()->size(); ++i)
+      {
+         if (!vm.count(tests->at(i).cmd_line_par()))
+            tests_->erase(tests_->begin() + i);
+
+         if (tests->at(i).is_golden_test())
+         {
+            if (goloden_test_idx_ < 0)
+               goloden_test_idx_ = i;
+            else
+            {
+               cerr << "Alredy have golden test: (" << tests->at(goloden_test_idx_).name() << ")" << endl;
+
+               throw "Golden test set error";
+            }
+         }
+      }
+   
+   if (!tests_->size())
+   {
+      cerr << "Bad program options usage! Example of using options:" << endl;
+      cerr << "./<program name> -o test.res -c 10 -s 1000 --<some test name>" << endl << endl;
+
+      throw head_description;
+   }
+
+   
+   if (goloden_test_idx_ < 0)
+   {
+      cerr << "Golden test doesn't set!" << endl;
+
+      throw "Golden test set error";
+   }
 }
 
 // return max difference
-double compare_res( const vector<test_unit_t> & tests, int size )
+double compare_res( const test_units_t tests, int size, int golden_test_idx )
 {
    double   * ideal_res = new double[size * size]
           , * other_res = new double[size * size];
 
-   ifstream ideal_file (tests[0].check_file());
+   ifstream ideal_file (tests->at(golden_test_idx).check_file());
 
    for (int i = 0; i < size * size; ++i)
       ideal_file >> ideal_res[i];
@@ -103,9 +164,12 @@ double compare_res( const vector<test_unit_t> & tests, int size )
    
    int max_diff_idx;
    
-   for (int k = 1; k < tests.size(); ++k)
+   for (int k = 0; k < tests->size(); ++k)
    {
-      ifstream input_file(tests[k].check_file());
+      if (k == golden_test_idx)
+         continue;
+      
+      ifstream input_file(tests->at(k).check_file());
 
       for (int i = 0; i < size * size; ++i)
          input_file >> other_res[i];
@@ -114,7 +178,7 @@ double compare_res( const vector<test_unit_t> & tests, int size )
 
       if (max_diff != 0)
       {
-         cout << tests[k].name() << " result output is incorrect! (maximum difference: " << max_diff << ", index:" << max_diff_idx << ")"<< endl;
+         cout << tests->at(k).name() << " result output is incorrect! (maximum difference: " << max_diff << ", index:" << max_diff_idx << ")"<< endl;
          max_diff = 0;
          max_diff_idx = 0;
       }
@@ -129,7 +193,7 @@ double compare_res( const vector<test_unit_t> & tests, int size )
    delete[] other_res;
 }
 
-void write_matr_to_file( ofstream & output_file, double * matr, int size )
+void write_matr_to_file( ofstream & output_file, const double * matr, int size )
 {
    for (int i = 0; i < size; ++i)
    {
@@ -140,17 +204,23 @@ void write_matr_to_file( ofstream & output_file, double * matr, int size )
    }
 }
 
-void test( const vector<test_unit_t> & tests, const double * a, const double * b, double * c, int size, ofstream & res_file )
+void remove_tmp_files( const vector<test_unit_t> & tests )
+{
+   for (size_t i = 0; i < tests.size(); ++i)
+      remove(tests[i].check_file().c_str());
+}
+
+void test( const test_units_t tests, const double * a, const double * b, double * c, int size, ofstream & res_file )
 {
    res_file << size << "\t";
 
    time_res_t duration;
    
-   for (size_t i = 0; i < tests.size(); ++i)
+   for (size_t i = 0; i < tests->size(); ++i)
    {
-      cout << "call " << tests[i].name() << endl;
+      cout << "call " << tests->at(i).name() << endl;
 
-      duration = tests[i].calc_func(size, a, b, c);
+      duration = tests->at(i).calc_func(size, a, b, c);
 
       cout << "computation time: " << duration.computing_time_ << " ms" << endl;
       cout << "memory allocation time: " << duration.mem_allocate_time_ << " ms" << endl;
@@ -159,7 +229,7 @@ void test( const vector<test_unit_t> & tests, const double * a, const double * b
       res_file << duration.computing_time_ << "\t" << duration.mem_allocate_time_
                << "\t" << duration.mem_allocate_time_ + duration.computing_time_ << "\t";
       
-      ofstream output_file(tests[i].check_file());
+      ofstream output_file(tests->at(i).check_file());
       
       write_matr_to_file(output_file, c, size);
       
@@ -173,11 +243,11 @@ void test_t::start()
 {
    max_matr_size_ -= max_matr_size_ % 32;
    
-   int   size_decr = max_matr_size_ / measurement_cnt_
+   int   size_incr = max_matr_size_ / measurement_cnt_
        , size;
    
-   size_decr -= size_decr % 32;
-   size       = size_decr;
+   size_incr -= size_incr % 32;
+   size       = size_incr;
    
    int test_idx = 0;
    
@@ -185,8 +255,8 @@ void test_t::start()
    
    result_file << "%% fields: \"size\" ";
    
-   for (size_t i = 0; i < tests_.size(); ++i)
-      result_file << "\"" << tests_[i].name() << "\" ";
+   for (size_t i = 0; i < tests_->size(); ++i)
+      result_file << "\"" << tests_->at(i).name() << "\" ";
    
    result_file << endl << "%format of tests output (compute_time, mem_alloc_time, total_time)" << endl;
    
@@ -215,9 +285,11 @@ void test_t::start()
       delete[] b;
       delete[] c;
 
-      compare_res(tests_, size);
+      compare_res(tests_, size, goloden_test_idx_);
       
-      size += size_decr;
+      //remove_tmp_files(tests_);
+      
+      size += size_incr;
       test_idx++;
       
       cout << endl;

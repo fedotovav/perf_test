@@ -14,27 +14,27 @@ time_res_t calc_four_thread_fort( int size, const double * a, const double * b, 
 time_res_t calc_two_thread_fort( int size, const double * a, const double * b, double * c );
 time_res_t calc_cpp( int size, const double * a, const double * b, double * c );
 
-vector<test_unit_t> tests_init()
+test_units_t tests_init()
 {
-   vector<test_unit_t> tests;
+   test_units_t tests(new vector<test_unit_t>);
    
-   test_unit_t unit_test("CPP test", calc_cpp, "cpp.test", "cpp");
-   tests.push_back(unit_test);
+   test_unit_t unit_test("CPP test", calc_cpp, "cpp.test", "cpp", 1);
+   tests->push_back(unit_test);
    
    unit_test = test_unit_t("OpenMP four thread test", calc_four_thread_fort, "omp_4t.test", "openmp-4f");
-   tests.push_back(unit_test);
+   tests->push_back(unit_test);
 
-   unit_test = test_unit_t("OpenMP two thread test", calc_two_thread_fort, "omp_2t.test", "openmp-4f");
-   tests.push_back(unit_test);
+   unit_test = test_unit_t("OpenMP two thread test", calc_two_thread_fort, "omp_2t.test", "openmp-2f");
+   tests->push_back(unit_test);
 
    unit_test = test_unit_t("Fortran test", calc_one_thread_fort, "f.test", "fortran");
-   tests.push_back(unit_test);
+   tests->push_back(unit_test);
 
    unit_test = test_unit_t("OpenCL test", calc_ocl, "cl.test", "opencl");
-   tests.push_back(unit_test);
+   tests->push_back(unit_test);
 
    unit_test = test_unit_t("CUDA test", calc_cu, "cuda.test", "cuda");
-   tests.push_back(unit_test);
+   tests->push_back(unit_test);
 
    return tests;
 }
@@ -51,7 +51,14 @@ int main( int argc, char ** argv )
       cout << desc;
       
       return 0;
-   }catch(...)
+   }
+   catch(const string & err)
+   {
+      cerr << err << endl;
+      
+      return 1;
+   }
+   catch(...)
    {
       return 1;
    }

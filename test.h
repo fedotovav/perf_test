@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <memory>
+#include <cstdio>
 
 #include <boost/program_options.hpp>
 
@@ -32,14 +33,16 @@ class test_unit_t
 {
 public:
    typedef time_res_t(* calc_func_t)  ( int size, const double * a, const double * b, double * c );
-   typedef void      (* limits_func_t)( size_t & matrix_size_limit );
+   //typedef void      (* limits_func_t)( size_t & matrix_size_limit );
    
    test_unit_t(const string & test_name, const calc_func_t & calc_func, const string & output_file_name
-              ,const string & cmd_line_par_name );
+              ,const string & cmd_line_par_name, int is_golden_test = 0 );
    
    const string & check_file  () const;
    const string & name        () const;
    const string & cmd_line_par() const;
+
+   int is_golden_test() const;
 
    calc_func_t calc_func;
    
@@ -49,6 +52,7 @@ public:
       test_name_         = test_unit.test_name_;
       output_file_       = test_unit.output_file_;
       cmd_line_par_name_ = test_unit.cmd_line_par_name_;
+      is_golden_test_    = test_unit.is_golden_test_;
       
       return *this;
    }
@@ -57,21 +61,27 @@ private:
    string   test_name_
           , output_file_
           , cmd_line_par_name_;
+   
+   int is_golden_test_;
 };
+
+typedef shared_ptr<vector<test_unit_t>> test_units_t;
 
 class test_t
 {
 public:
-   test_t( int argc, char ** argv, const vector<test_unit_t> & tests );
+   test_t( int argc, char ** argv, const test_units_t tests );
    
    void start();
    
 private:
-   vector<test_unit_t> tests_;
+   test_units_t tests_;
    
    string output_file_name_;
 
    size_t   max_matr_size_
           , matr_size_limit_ // maximum matrix size in bytes
           , measurement_cnt_;
+   
+   int goloden_test_idx_;
 };
