@@ -13,7 +13,7 @@
 #include <cstdio>
 
 #include <boost/program_options.hpp>
-
+   
 using namespace std;
 
 namespace po = boost::program_options;
@@ -66,14 +66,15 @@ private:
 };
 
 typedef shared_ptr<vector<test_unit_t>> test_units_t;
-typedef shared_ptr<void *>              test_data_t ;
+typedef shared_ptr<double *>            test_data_t ;
 
 class test_t
 {
 public:
-   typedef size_t      (* size_func_t)           ( size_t test_idx, size_t max_data_size, size_t measurement_cnt );
-   typedef void        (* print_test_info_func_t)( size_t size );
-   typedef test_data_t (* prepare_date_func_t)   ( size_t size );
+   typedef size_t      (* size_func_t)                 ( size_t test_idx, size_t max_data_size, size_t measurement_cnt );
+   typedef void        (* print_test_info_func_t)      ( size_t size );
+   typedef test_data_t (* prepare_date_func_t)         ( size_t size );
+   typedef void        (* write_data_to_file_func_t)   ( ofstream & output_file, const double * data, int size );
 
    test_t( int argc, char ** argv, const string & test_name, const test_units_t tests, size_func_t size_func
           ,print_test_info_func_t print_test_info_func, prepare_date_func_t prepare_date_func );

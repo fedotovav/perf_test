@@ -8,21 +8,21 @@ extern "C"
    int calc_two_thread_f ( int size, const double * a, const double * b, double * c );
    int calc_one_thread_f ( int size, const double * a, const double * b, double * c );
 
-   int fill_2_matr( int size, const double * a, const double * b );
+   int fill_2_arrays( int size, const double * a, const double * b );
 }
 
-extern time_res_t calc_cu ( int size, const double * a, const double * b, double * c );
-extern time_res_t calc_ocl( int size, const double * a, const double * b, double * c );
-time_res_t calc_one_thread_fort( int size, const double * a, const double * b, double * c );
+extern time_res_t mm_calc_cu    ( int size, const double * a, const double * b, double * c );
+extern time_res_t calc_ocl      ( int size, const double * a, const double * b, double * c );
+time_res_t calc_one_thread_fort ( int size, const double * a, const double * b, double * c );
 time_res_t calc_four_thread_fort( int size, const double * a, const double * b, double * c );
-time_res_t calc_two_thread_fort( int size, const double * a, const double * b, double * c );
-time_res_t calc_cpp( int size, const double * a, const double * b, double * c );
+time_res_t calc_two_thread_fort ( int size, const double * a, const double * b, double * c );
+time_res_t mm_calc_cpp          ( int size, const double * a, const double * b, double * c );
 
 test_units_t tests_init()
 {
    test_units_t tests(new vector<test_unit_t>);
    
-   test_unit_t unit_test("CPP test", calc_cpp, "cpp.test", "cpp", 1);
+   test_unit_t unit_test("CPP test", mm_calc_cpp, "cpp.test", "cpp", 1);
    tests->push_back(unit_test);
    
    unit_test = test_unit_t("OpenMP four thread test", calc_four_thread_fort, "omp_4t.test", "openmp-4f");
@@ -37,7 +37,7 @@ test_units_t tests_init()
    unit_test = test_unit_t("OpenCL test", calc_ocl, "cl.test", "opencl");
    tests->push_back(unit_test);
 
-   unit_test = test_unit_t("CUDA test", calc_cu, "cuda.test", "cuda");
+   unit_test = test_unit_t("CUDA test", mm_calc_cu, "cuda.test", "cuda");
    tests->push_back(unit_test);
 
    return tests;
@@ -45,13 +45,13 @@ test_units_t tests_init()
 
 test_data_t prepare_date( size_t size )
 {
-   test_data_t matrices(new void*[3]);
+   test_data_t matrices(new double*[3]);
 
    matrices.get()[0] = new double[size * size];
    matrices.get()[1] = new double[size * size];
    matrices.get()[2] = new double[size * size];
    
-   fill_2_matr(size, (const double *)matrices.get()[0], (const double *)matrices.get()[1]);
+   fill_2_arrays(size, matrices.get()[0], matrices.get()[1]);
    
    return matrices;
 }

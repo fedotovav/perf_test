@@ -149,13 +149,13 @@ integer function compare_2_arrays(n, a, b, max_diff, max_diff_idx) bind(C)
 
 end function compare_2_arrays
 
-integer function fill_2_matr(n, a, b) bind(C)
+integer function fill_2_arrays(n, a, b) bind(C)
     use iso_c_binding
     use omp_lib
     implicit none
     integer(c_int), value, intent(in) :: n
 
-    real(c_double), dimension(n * n), intent(inout) :: a, b
+    real(c_double), dimension(n), intent(inout) :: a, b
 
     integer i, cur_idx, chunk, threads_cnt, thread_id
 
@@ -170,12 +170,12 @@ integer function fill_2_matr(n, a, b) bind(C)
     end if
 
     !$omp do schedule(static, chunk)
-    do i = 1, n * n
+    do i = 1, n
         call RANDOM_NUMBER(a(i))
         call RANDOM_NUMBER(b(i))
     end do
     !$omp end parallel
 
-    fill_2_matr = 0
+    fill_2_arrays = 0
 
-end function fill_2_matr
+end function fill_2_arrays

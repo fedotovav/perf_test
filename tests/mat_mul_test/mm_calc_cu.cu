@@ -153,7 +153,7 @@ time_res_t matrixMultiply(const double * a, const double * b, double * c, int bl
 
    // Setup execution parameters
    dim3 threads(block_size, block_size);
-   dim3 grid(size / threads.x, size / threads.y);
+   dim3 grid(size / threads.x + 1, size / threads.y + 1);
 
    time_start = chrono::system_clock::now();
 
@@ -201,7 +201,7 @@ time_res_t matrixMultiply(const double * a, const double * b, double * c, int bl
    return time_res;
 }
 
-time_res_t calc_cu( int size, const double * a, const double * b, double * c )
+time_res_t mm_calc_cu( int size, const double * a, const double * b, double * c )
 {
    int devID = 0;
 

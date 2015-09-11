@@ -238,7 +238,7 @@ void test( const test_units_t tests, test_data_t matrices, int size, ofstream & 
    {
       cout << "call " << tests->at(i).name() << endl;
 
-      duration = tests->at(i).calc_func(size, (const double *)matrices.get()[0], (const double *)matrices.get()[1], (double *)matrices.get()[2]);
+      duration = tests->at(i).calc_func(size, matrices.get()[0], matrices.get()[1], matrices.get()[2]);
 
       cout << "computation time: " << duration.computing_time_ << " ms" << endl;
       cout << "memory allocation time: " << duration.mem_allocate_time_ << " ms" << endl;
@@ -249,7 +249,7 @@ void test( const test_units_t tests, test_data_t matrices, int size, ofstream & 
       
       ofstream output_file(tests->at(i).check_file());
       
-      write_data_to_file(output_file, (double *)matrices.get()[2], size);
+      write_data_to_file(output_file, matrices.get()[2], size);
       
       output_file.close();
    }
@@ -266,7 +266,14 @@ void test_t::start()
    for (size_t i = 0; i < tests_->size(); ++i)
       result_file << "\"" << tests_->at(i).name() << "\" ";
    
-   result_file << endl << "%format of tests output (compute_time, mem_alloc_time, total_time)" << endl;
+   result_file << endl << "Variables = \"size\", ";
+   
+   for (size_t i = 0; i < tests_->size(); ++i)
+      result_file << "\"" << tests_->at(i).name() << " compute time\", "
+                  << "\"" << tests_->at(i).name() << " mem alloc time\", "
+                  << "\"" << tests_->at(i).name() << " total time\", ";
+   
+   result_file << endl << "Zone i=1, j=1, k=1";
    
    result_file << endl;
       
@@ -280,7 +287,7 @@ void test_t::start()
    
    for (size_t test_idx = 0; test_idx < measurement_cnt_; ++test_idx)
    {
-      cout << "---------test #" << test_idx << "---------" << endl;
+      cout << "--------- test #" << test_idx << " ---------" << endl;
 
       size = size_func_(test_idx, max_data_size_, measurement_cnt_);
       
@@ -294,9 +301,7 @@ void test_t::start()
 
       compare_res(tests_, size, goloden_test_idx_);
       
-      remove_tmp_files(tests_);
-      
-      test_idx++;
+      //remove_tmp_files(tests_);
       
       cout << endl;
    }
