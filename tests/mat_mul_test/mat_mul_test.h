@@ -22,13 +22,13 @@ test_units_t tests_init()
 {
    test_units_t tests(new vector<test_unit_t>);
    
-   test_unit_t unit_test("CPP test", mm_calc_cpp, "cpp.test", "cpp", 1);
+   test_unit_t unit_test("CPP test", mm_calc_cpp, "cpp.test", "cpp");
    tests->push_back(unit_test);
    
-   unit_test = test_unit_t("OpenMP four thread test", calc_four_thread_fort, "omp_4t.test", "openmp-4f");
+   unit_test = test_unit_t("OpenMP four thread test", calc_four_thread_fort, "omp_4t.test", "openmp4t");
    tests->push_back(unit_test);
 
-   unit_test = test_unit_t("OpenMP two thread test", calc_two_thread_fort, "omp_2t.test", "openmp-2f");
+   unit_test = test_unit_t("OpenMP two thread test", calc_two_thread_fort, "omp_2t.test", "openmp2t");
    tests->push_back(unit_test);
 
    unit_test = test_unit_t("Fortran test", calc_one_thread_fort, "f.test", "fortran");

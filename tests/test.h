@@ -36,13 +36,11 @@ public:
    //typedef void      (* limits_func_t)( size_t & matrix_size_limit );
    
    test_unit_t(const string & test_name, const calc_func_t & calc_func, const string & output_file_name
-              ,const string & cmd_line_par_name, int is_golden_test = 0 );
+              ,const string & cmd_line_par_name    );
    
    const string & check_file  () const;
    const string & name        () const;
    const string & cmd_line_par() const;
-
-   int is_golden_test() const;
 
    calc_func_t calc_func;
    
@@ -52,7 +50,6 @@ public:
       test_name_         = test_unit.test_name_;
       output_file_       = test_unit.output_file_;
       cmd_line_par_name_ = test_unit.cmd_line_par_name_;
-      is_golden_test_    = test_unit.is_golden_test_;
       
       return *this;
    }
@@ -61,8 +58,6 @@ private:
    string   test_name_
           , output_file_
           , cmd_line_par_name_;
-   
-   int is_golden_test_;
 };
 
 typedef shared_ptr<vector<test_unit_t>> test_units_t;

@@ -1,12 +1,11 @@
 #include "test.h"
 
 test_unit_t::test_unit_t( const string & test_name, const calc_func_t & func, const string & output_file_name
-                         ,const string & cmd_line_par_name, int is_golden_test ) :
+                         ,const string & cmd_line_par_name ) :
      test_name_        (test_name)
    , calc_func         (func)
    , output_file_      (output_file_name)
    , cmd_line_par_name_(cmd_line_par_name)
-   , is_golden_test_   (is_golden_test)
 {
 }
 
@@ -23,11 +22,6 @@ const string & test_unit_t::name() const
 const string & test_unit_t::cmd_line_par() const
 {
    return cmd_line_par_name_;
-}
-
-int test_unit_t::is_golden_test() const
-{
-   return is_golden_test_;
 }
 
 test_t::test_t( int argc, char ** argv, const string & test_name, test_units_t tests, size_func_t size_func
@@ -47,18 +41,22 @@ test_t::test_t( int argc, char ** argv, const string & test_name, test_units_t t
 
    po::options_description general_options("General options");
    general_options.add_options()
-   ("help,h", "show help")
-   ("measurement-cnt,c", po::value<size_t>(&measurement_cnt_), "set measurement count")
-   ("output-file,o", po::value<string>(&output_file_name_), "test result output file name")
-   ("max-matr-size,s", po::value<size_t>(&max_data_size_), "maximum matrix size");
+      ("help,h", "show help")
+      ("measurement-cnt,c", po::value<size_t>(&measurement_cnt_), "set measurement count")
+      ("output-file,o", po::value<string>(&output_file_name_), "test result output file name")
+      ("max-matr-size,s", po::value<size_t>(&max_data_size_), "maximum matrix size");
 
    po::options_description tests_options("Available tests");
 
    tests_options.add_options()("all-tests-units,all", "do all test units");
 
+   tests_options.add_options()("golden-test", po::value<string>(), "test with exact result that will use for check other tests results");
+   
+   tests_options.add_options()("golden-test", po::value<string>(), "test with exact result that will use for check other tests results");
+
    for (size_t i = 0; i < tests.get()->size(); ++i)
       tests_options.add_options()(tests->at(i).cmd_line_par().c_str(), "test unit");
-   
+
    head_description.add(general_options).add(tests_options);
    
    po::variables_map vm;
@@ -82,7 +80,7 @@ test_t::test_t( int argc, char ** argv, const string & test_name, test_units_t t
    if (!vm.count("measurement-cnt") || !vm.count("output-file") || !vm.count("max-matr-size"))
    {
       cerr << "Bad program options usage! Example of using options:" << endl;
-      cerr << "./<program name> -o test.res -c 10 -s 1000 --<some test name>" << endl << endl;
+      cerr << "./<program name> -o test.plt -c 10 -s 1000 --<some test(s) name(s)> --golden-test=<some test name>" << endl << endl;
       
       throw head_description;
    }
@@ -91,61 +89,12 @@ test_t::test_t( int argc, char ** argv, const string & test_name, test_units_t t
       tests_ = tests;
    else
    {
-      cerr << "No oune test found!" << endl;
+      cerr << "No one test found!" << endl;
 
       throw;
    }
 
    size_t tests_cnt = tests_->size();
-   
-   int test_exist = 1;
-   
-   if (vm.count("all-tests-units"))
-   {
-      for (size_t i = 0; i < tests_cnt; ++i)
-      {
-         if (tests_->at(i).is_golden_test())
-         {
-            if (goloden_test_idx_ < 0)
-               goloden_test_idx_ = i;
-            else
-            {
-               cerr << "Alredy have golden test: (" << tests->at(goloden_test_idx_).name() << ")" << endl;
-
-               throw;
-            }
-         }
-      }
-   }
-   else
-      for (size_t i = 0, cur_test_idx = 0; i < tests_cnt; ++i)
-      {
-         if (!vm.count(tests->at(cur_test_idx).cmd_line_par()))
-         {
-            tests_->erase(tests_->begin() + cur_test_idx);
-
-            test_exist = 0;
-         }
-
-         if (test_exist)
-         {
-            if (tests->at(cur_test_idx).is_golden_test())
-            {
-               if (goloden_test_idx_ < 0)
-                  goloden_test_idx_ = i;
-               else
-               {
-                  cerr << "Alredy have golden test: (" << tests->at(goloden_test_idx_).name() << ")" << endl;
-
-                  throw "Golden test set error";
-               }
-            }
-            
-            cur_test_idx++;
-         }
-         
-         test_exist = 1;
-      }
    
    if (!tests_->size())
    {
@@ -154,14 +103,18 @@ test_t::test_t( int argc, char ** argv, const string & test_name, test_units_t t
 
       throw head_description;
    }
-
    
-   if (goloden_test_idx_ < 0)
-   {
-      cerr << "Golden test doesn't set!" << endl;
-
-      throw "Golden test set error";
-   }
+   if (!vm.count("all-tests-units"))
+      for (size_t i = 0, cur_test_idx = 0; i < tests_cnt; ++i)
+         if (!vm.count(tests->at(cur_test_idx).cmd_line_par()))
+            tests_->erase(tests_->begin() + cur_test_idx);
+         else
+            cur_test_idx++;
+      
+   if (vm.count("golden-test"))
+      for (size_t i = 0; i < tests_cnt; ++i)
+         if (tests->at(i).cmd_line_par() == vm["golden-test"].as<string>())
+            goloden_test_idx_ = i;
 }
 
 extern "C" int compare_2_arrays( int size, const double * a, const double * b, double * max_diff, int * max_diff_idx );
@@ -228,7 +181,7 @@ void remove_tmp_files( const test_units_t tests )
          remove(tests->at(i).check_file().c_str());
 }
 
-void test( const test_units_t tests, test_data_t matrices, int size, ofstream & res_file )
+void test( const test_units_t tests, test_data_t matrices, int size, ofstream & res_file, int need_check_file )
 {
    res_file << size << "\t";
 
@@ -247,11 +200,14 @@ void test( const test_units_t tests, test_data_t matrices, int size, ofstream & 
       res_file << duration.computing_time_ << "\t" << duration.mem_allocate_time_
                << "\t" << duration.mem_allocate_time_ + duration.computing_time_ << "\t";
       
-      ofstream output_file(tests->at(i).check_file());
+      if (need_check_file)
+      {
+         ofstream output_file(tests->at(i).check_file());
       
-      write_data_to_file(output_file, matrices.get()[2], size);
-      
-      output_file.close();
+         write_data_to_file(output_file, matrices.get()[2], size);
+
+         output_file.close();
+      }
    }
    
    res_file << endl;
@@ -285,6 +241,8 @@ void test_t::start()
    
    size_t size = 0;
    
+   int need_check_file = 1;
+   
    for (size_t test_idx = 0; test_idx < measurement_cnt_; ++test_idx)
    {
       cout << "--------- test #" << test_idx << " ---------" << endl;
@@ -295,13 +253,17 @@ void test_t::start()
 
       test_data_t matrices = prepare_date_func_(size);
       
-      test(tests_, matrices, size, result_file);
+      if (goloden_test_idx_ < 0)
+         need_check_file = 0;
+      
+      test(tests_, matrices, size, result_file, need_check_file);
       
       matrices.reset();
 
-      compare_res(tests_, size, goloden_test_idx_);
+      if (goloden_test_idx_ != -1)
+         compare_res(tests_, size, goloden_test_idx_);
       
-      //remove_tmp_files(tests_);
+      remove_tmp_files(tests_);
       
       cout << endl;
    }

@@ -15,7 +15,7 @@ test_units_t tests_init()
 {
    test_units_t tests(new vector<test_unit_t>);
    
-   test_unit_t unit_test("CPP test", va_calc_cpp, "cpp.test", "cpp", 1);
+   test_unit_t unit_test("CPP test", va_calc_cpp, "cpp.test", "cpp");
    tests->push_back(unit_test);
    
    unit_test = test_unit_t("CUDA test", va_calc_cu, "cuda.test", "cuda");
