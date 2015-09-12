@@ -17,11 +17,12 @@ OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CU_TEST_SRCS:.cu=.o)))
 OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(OCL_TEST_SRC:.cpp=.o)))
 OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CPP_SRCS:.cpp=.o)))
 
-MODE_FLAGS = -g#-Ofast 
+DBG_FLAGS = #-g
+RLS_FLAGS = -Ofast
 
-GF_FLAGS = -fopenmp -std=f2008 $(MODE_FLAGS)
-CU_FLAGS = -gencode arch=compute_20,code=compute_20 -std=c++11 $(MODE_FLAGS)
-CPP_FLAGS = -std=c++11 $(MODE_FLAGS)
+GF_FLAGS = -fopenmp -std=f2008 $(DBG_FLAGS) $(RLS_FLAGS)
+CU_FLAGS = -gencode arch=compute_20,code=compute_20 -std=c++11 $(DBG_FLAGS)
+CPP_FLAGS = -std=c++11 $(DBG_FLAGS) $(RLS_FLAGS)
 LINK_FLAGS = -fopenmp -lstdc++ -lgfortran -L/usr/local/cuda/lib64/ -lcuda -lcudart -lm -lOpenCL -L/usr/local/lib -lboost_program_options
 CPP_INCLUDE = -I/usr/local/cuda/include -I/usr/local/include
 
