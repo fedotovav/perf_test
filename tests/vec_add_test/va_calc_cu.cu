@@ -10,6 +10,22 @@
 
 using namespace std;
 
+__global__ void va_warm_up_kernel( double * a )
+{
+   *a = 0;
+}
+
+void va_warm_up()
+{
+   double * warm_tmp;
+   
+   cudaMalloc((void **) &warm_tmp, sizeof(double));
+   
+   va_warm_up_kernel<<< dim3(1), dim3(1) >>>(warm_tmp);
+   
+   cudaFree(warm_tmp);
+}
+
 __global__ void vec_add_kernel( double * a, double * b, double * c, int size )
 {
    int bx = blockIdx.x;
@@ -31,68 +47,68 @@ __global__ void vec_add_with_check_kernel( double * a, double * b, double * c, i
       c[global_idx] = a[global_idx] + b[global_idx];
 }
 
-////////////////////////////////////
-// remove this shame!!!!
-////////////////////////////////////
-
-time_res_t vec_add( const double * a, const double * b, double * c, int block_size, int size )
+int va_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, const double *& host_a, const double *& host_b, size_t size )
 {
-   double *d_A, *d_B, *d_C;
+   cudaError error = cudaMalloc((void **)dev_a, sizeof(double) * size);
+
+   if (error != cudaSuccess)
+   {
+      printf("cudaMalloc d_A returned error code %d, line(%d)\n", error, __LINE__);
+      return 0;
+   }
+
+   error = cudaMalloc((void **)dev_b, sizeof(double) * size);
+
+   if (error != cudaSuccess)
+   {
+      printf("cudaMalloc d_B returned error code %d, line(%d)\n", error, __LINE__);
+      return 0;
+   }
+
+   error = cudaMalloc((void **)dev_c, sizeof(double) * size);
+
+   if (error != cudaSuccess)
+   {
+      printf("cudaMalloc d_C returned error code %d, line(%d)\n", error, __LINE__);
+      return 0;
+   }
+
+   error = cudaMemcpy(*dev_a, host_a, sizeof(double) * size, cudaMemcpyHostToDevice);
+
+   if (error != cudaSuccess)
+   {
+      printf("cudaMemcpy (d_A,h_A) returned error code %d, line(%d)\n", error, __LINE__);
+      return 0;
+   }
+
+   error = cudaMemcpy(*dev_b, host_b, sizeof(double) * size, cudaMemcpyHostToDevice);
+
+   if (error != cudaSuccess)
+   {
+      printf("cudaMemcpy (d_B,h_B) returned error code %d, line(%d)\n", error, __LINE__);
+      return 0;
+   }
+   
+   return 1;
+}
+
+time_res_t vec_add( const double * a, const double * b, double * c, int block_size, size_t size )
+{
+   double   * d_A = NULL
+          , * d_B = NULL
+          , * d_C = NULL;
 
    cudaError_t error;
    
    time_res_t time_res;
    
-   chrono::time_point<chrono::system_clock> time_start, time_finish;
-
-   time_start = chrono::system_clock::now();
-
-   error = cudaMalloc((void **) &d_A, sizeof(double) * size);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMalloc d_A returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   error = cudaMalloc((void **) &d_B, sizeof(double) * size);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMalloc d_B returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   error = cudaMalloc((void **) &d_C, sizeof(double) * size);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMalloc d_C returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   // copy host memory to device
-   error = cudaMemcpy(d_A, a, sizeof(double) * size, cudaMemcpyHostToDevice);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMemcpy (d_A,h_A) returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   error = cudaMemcpy(d_B, b, sizeof(double) * size, cudaMemcpyHostToDevice);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMemcpy (d_B,h_B) returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   time_finish = chrono::system_clock::now();
-
-   size_t duration = chrono::duration_cast<std::chrono::milliseconds>(time_finish - time_start).count();
+   va_warm_up();
    
-   time_res.mem_allocate_time_ = duration;
+   time_res.measure_start();
+   
+   va_device_mem_alloc(&d_A, &d_B, &d_C, a, b, size);
+
+   time_res.mem_allocate_time_ = time_res.measure_finish();
 
    dim3 threads, grid;
 
@@ -107,39 +123,23 @@ time_res_t vec_add( const double * a, const double * b, double * c, int block_si
       grid.x    = 1;
    }
 
-   time_start = chrono::system_clock::now();
+   time_res.measure_start();
 
-   if (block_size == 16)
-   {
-      vec_add_kernel<<< grid, threads >>>(d_A, d_B, d_C, size);
-   }
-   else
-   {
-      vec_add_kernel<<< grid, threads >>>(d_A, d_B, d_C, size);
-   }
+   vec_add_kernel<<< grid, threads >>>(d_A, d_B, d_C, size);
 
    cudaDeviceSynchronize();
 
-   time_finish = chrono::system_clock::now();
+   time_res.computing_time_ = time_res.measure_finish();
 
-   duration = chrono::duration_cast<std::chrono::milliseconds>(time_finish - time_start).count();
-   
-   time_res.computing_time_ = duration;
+   time_res.measure_start();
 
-   time_start = chrono::system_clock::now();
-
-   // Copy result from device to host
    error = cudaMemcpy(c, d_C, sizeof(double) * size, cudaMemcpyDeviceToHost);
 
-   time_finish = chrono::system_clock::now();
-
-   duration = chrono::duration_cast<std::chrono::milliseconds>(time_finish - time_start).count();
-   
-   time_res.mem_allocate_time_ = duration;
+   time_res.mem_allocate_time_ += time_res.measure_finish();
 
    if (error != cudaSuccess)
    {
-      printf("cudaMemcpy (h_C,d_C) returned error code %d, line(%d)\n", error, __LINE__);
+      printf("cudaMemcpy(h_C, d_C) returned error code %d, line(%d)\n", error, __LINE__);
       return time_res_t();
    }
 
@@ -153,63 +153,22 @@ time_res_t vec_add( const double * a, const double * b, double * c, int block_si
 }
 
 time_res_t vec_add_with_check( const double * a, const double * b, double * c, int block_size, int size )
-{
-   double *d_A, *d_B, *d_C;
+ {
+   double   * d_A = NULL
+          , * d_B = NULL
+          , * d_C = NULL;
 
    cudaError_t error;
    
    time_res_t time_res;
    
-   chrono::time_point<chrono::system_clock> time_start, time_finish;
-
-   time_start = chrono::system_clock::now();
-
-   error = cudaMalloc((void **) &d_A, sizeof(double) * size);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMalloc d_A returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   error = cudaMalloc((void **) &d_B, sizeof(double) * size);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMalloc d_B returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   error = cudaMalloc((void **) &d_C, sizeof(double) * size);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMalloc d_C returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   // copy host memory to device
-   error = cudaMemcpy(d_A, a, sizeof(double) * size, cudaMemcpyHostToDevice);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMemcpy (d_A,h_A) returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   error = cudaMemcpy(d_B, b, sizeof(double) * size, cudaMemcpyHostToDevice);
-
-   if (error != cudaSuccess)
-   {
-      printf("cudaMemcpy (d_B,h_B) returned error code %d, line(%d)\n", error, __LINE__);
-      return time_res_t();
-   }
-
-   time_finish = chrono::system_clock::now();
-
-   size_t duration = chrono::duration_cast<std::chrono::milliseconds>(time_finish - time_start).count();
+   va_warm_up();
    
-   time_res.mem_allocate_time_ = duration;
+   time_res.measure_start();
+   
+   va_device_mem_alloc(&d_A, &d_B, &d_C, a, b, size);
+
+   time_res.mem_allocate_time_ = time_res.measure_finish();
 
    dim3 threads, grid;
 
@@ -224,39 +183,24 @@ time_res_t vec_add_with_check( const double * a, const double * b, double * c, i
       grid.x    = 1;
    }
 
-   time_start = chrono::system_clock::now();
+   time_res.measure_start();
 
-   if (block_size == 16)
-   {
-      vec_add_with_check_kernel<<< grid, threads >>>(d_A, d_B, d_C, size);
-   }
-   else
-   {
-      vec_add_with_check_kernel<<< grid, threads >>>(d_A, d_B, d_C, size);
-   }
+   vec_add_with_check_kernel<<< grid, threads >>>(d_A, d_B, d_C, size);
 
    cudaDeviceSynchronize();
 
-   time_finish = chrono::system_clock::now();
+   time_res.computing_time_ = time_res.measure_finish();
 
-   duration = chrono::duration_cast<std::chrono::milliseconds>(time_finish - time_start).count();
-   
-   time_res.computing_time_ = duration;
-
-   time_start = chrono::system_clock::now();
+   time_res.measure_start();
 
    // Copy result from device to host
    error = cudaMemcpy(c, d_C, sizeof(double) * size, cudaMemcpyDeviceToHost);
 
-   time_finish = chrono::system_clock::now();
-
-   duration = chrono::duration_cast<std::chrono::milliseconds>(time_finish - time_start).count();
-   
-   time_res.mem_allocate_time_ = duration;
+   time_res.mem_allocate_time_ += time_res.measure_finish();
 
    if (error != cudaSuccess)
    {
-      printf("cudaMemcpy (h_C,d_C) returned error code %d, line(%d)\n", error, __LINE__);
+      printf("cudaMemcpy (h_C, d_C) returned error code %d, line(%d)\n", error, __LINE__);
       return time_res_t();
    }
 
@@ -336,4 +280,3 @@ time_res_t va_calc_cu_with_check( int size, const double * a, const double * b, 
 
    return duration;
 }
-
