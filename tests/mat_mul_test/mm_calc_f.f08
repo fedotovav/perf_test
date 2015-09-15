@@ -1,4 +1,4 @@
-integer function calc_four_thread_f(n, a, b, c) bind(C)
+integer function calc_four_thread_double(n, a, b, c) bind(C)
     use iso_c_binding
     use omp_lib
     implicit none
@@ -13,7 +13,7 @@ integer function calc_four_thread_f(n, a, b, c) bind(C)
 
     call omp_set_num_threads(4)
 
-    !$omp parallel shared(a, b, c, threads_cnt, chunk) private(thread_id, i, j, k)
+    !$omp parallel shared(a, b, c, threads_cnt, chunk) private(thread_id, i, j, k, cur_idx)
 
     thread_id = omp_get_thread_num()
 
@@ -34,11 +34,91 @@ integer function calc_four_thread_f(n, a, b, c) bind(C)
     end do
     !$omp end parallel
 
-    calc_four_thread_f = 0
+    calc_four_thread_double = 0
 
-end function calc_four_thread_f
+end function calc_four_thread_double
 
-integer function calc_two_thread_f(n, a, b, c) bind(C)
+integer function calc_four_thread_float(n, a, b, c) bind(C)
+    use iso_c_binding
+    use omp_lib
+    implicit none
+    integer(c_int), value, intent(in) :: n
+
+    real(c_float), dimension(n * n), intent(in) :: a, b
+    real(c_float), dimension(n * n), intent(out) :: c
+
+    integer i, j, k, cur_idx, chunk, threads_cnt, thread_id
+
+    chunk = 10
+
+    call omp_set_num_threads(4)
+
+    !$omp parallel shared(a, b, c, threads_cnt, chunk) private(thread_id, i, j, k, cur_idx)
+
+    thread_id = omp_get_thread_num()
+
+    if (thread_id .eq. 0) then
+        threads_cnt = omp_get_num_threads()
+    end if
+
+    !$omp do schedule(static, chunk)
+    do i = 1, n
+        do j = 1, n
+            cur_idx = (i - 1) * n + j
+            c(cur_idx) = 0
+
+            do k = 1, n
+                c(cur_idx) = c(cur_idx) + a((i - 1) * n + k) * b((k - 1) * n + j)
+            end do
+        end do
+    end do
+    !$omp end parallel
+
+    calc_four_thread_float = 0
+
+end function calc_four_thread_float
+
+integer function calc_four_thread_int(n, a, b, c) bind(C)
+    use iso_c_binding
+    use omp_lib
+    implicit none
+    integer(c_int), value, intent(in) :: n
+
+    integer(c_int), dimension(n * n), intent(in) :: a, b
+    integer(c_int), dimension(n * n), intent(out) :: c
+
+    integer i, j, k, cur_idx, chunk, threads_cnt, thread_id
+
+    chunk = 10
+
+    call omp_set_num_threads(4)
+
+    !$omp parallel shared(a, b, c, threads_cnt, chunk) private(thread_id, i, j, k, cur_idx)
+
+    thread_id = omp_get_thread_num()
+
+    if (thread_id .eq. 0) then
+        threads_cnt = omp_get_num_threads()
+    end if
+
+    !$omp do schedule(static, chunk)
+    do i = 1, n
+        do j = 1, n
+            cur_idx = (i - 1) * n + j
+            c(cur_idx) = 0
+
+            do k = 1, n
+                c(cur_idx) = c(cur_idx) + a((i - 1) * n + k) * b((k - 1) * n + j)
+            end do
+        end do
+    end do
+    !$omp end parallel
+
+    calc_four_thread_int = 0
+
+end function calc_four_thread_int
+
+integer function calc_two_thread_double(n, a, b, c) bind(C)
     use iso_c_binding
     use omp_lib
     implicit none
@@ -53,7 +133,7 @@ integer function calc_two_thread_f(n, a, b, c) bind(C)
 
     call omp_set_num_threads(2)
 
-    !$omp parallel shared(a, b, c, threads_cnt, chunk) private(thread_id, i, j, k)
+    !$omp parallel shared(a, b, c, threads_cnt, chunk) private(thread_id, i, j, k, cur_idx)
 
     thread_id = omp_get_thread_num()
 
@@ -74,11 +154,91 @@ integer function calc_two_thread_f(n, a, b, c) bind(C)
     end do
     !$omp end parallel
 
-    calc_two_thread_f = 0
+    calc_two_thread_double = 0
 
-end function calc_two_thread_f
+end function calc_two_thread_double
 
-integer function calc_one_thread_f(n, a, b, c) bind(C)
+integer function calc_two_thread_float(n, a, b, c) bind(C)
+    use iso_c_binding
+    use omp_lib
+    implicit none
+    integer(c_int), value, intent(in) :: n
+
+    real(c_float), dimension(n * n), intent(in) :: a, b
+    real(c_float), dimension(n * n), intent(out) :: c
+
+    integer i, j, k, cur_idx, chunk, threads_cnt, thread_id
+
+    chunk = 10
+
+    call omp_set_num_threads(2)
+
+    !$omp parallel shared(a, b, c, threads_cnt, chunk) private(thread_id, i, j, k, cur_idx)
+
+    thread_id = omp_get_thread_num()
+
+    if (thread_id .eq. 0) then
+        threads_cnt = omp_get_num_threads()
+    end if
+
+    !$omp do schedule(static, chunk)
+    do i = 1, n
+        do j = 1, n
+            cur_idx = (i - 1) * n + j
+            c(cur_idx) = 0
+
+            do k = 1, n
+                c(cur_idx) = c(cur_idx) + a((i - 1) * n + k) * b((k - 1) * n + j)
+            end do
+        end do
+    end do
+    !$omp end parallel
+
+    calc_two_thread_float = 0
+
+end function calc_two_thread_float
+
+integer function calc_two_thread_int(n, a, b, c) bind(C)
+    use iso_c_binding
+    use omp_lib
+    implicit none
+    integer(c_int), value, intent(in) :: n
+
+    integer(c_int), dimension(n * n), intent(in) :: a, b
+    integer(c_int), dimension(n * n), intent(out) :: c
+
+    integer i, j, k, cur_idx, chunk, threads_cnt, thread_id
+
+    chunk = 10
+
+    call omp_set_num_threads(2)
+
+    !$omp parallel shared(a, b, c, threads_cnt, chunk) private(thread_id, i, j, k, cur_idx)
+
+    thread_id = omp_get_thread_num()
+
+    if (thread_id .eq. 0) then
+        threads_cnt = omp_get_num_threads()
+    end if
+
+    !$omp do schedule(static, chunk)
+    do i = 1, n
+        do j = 1, n
+            cur_idx = (i - 1) * n + j
+            c(cur_idx) = 0
+
+            do k = 1, n
+                c(cur_idx) = c(cur_idx) + a((i - 1) * n + k) * b((k - 1) * n + j)
+            end do
+        end do
+    end do
+    !$omp end parallel
+
+    calc_two_thread_int = 0
+
+end function calc_two_thread_int
+
+integer function calc_one_thread_double(n, a, b, c) bind(C)
     use iso_c_binding
     implicit none
     integer(c_int), value, intent(in) :: n
@@ -99,83 +259,56 @@ integer function calc_one_thread_f(n, a, b, c) bind(C)
         end do
     end do
 
-    calc_one_thread_f = 0
+    calc_one_thread_double = 0
 
-end function calc_one_thread_f
+end function calc_one_thread_double
 
-integer function compare_2_arrays(n, a, b, max_diff, max_diff_idx) bind(C)
+integer function calc_one_thread_float(n, a, b, c) bind(C)
     use iso_c_binding
-    use omp_lib
     implicit none
     integer(c_int), value, intent(in) :: n
 
-    real(c_double), dimension(n), intent(in) :: a, b
+    real(c_float), dimension(n * n), intent(in) :: a, b
+    real(c_float), dimension(n * n), intent(out) :: c
 
-    real(c_double), intent(out) :: max_diff
-    integer(c_int), intent(out) :: max_diff_idx
+    integer i, j, k, cur_idx
 
-    integer i, cur_idx, chunk, threads_cnt, thread_id
-
-    real curr_diff
-
-    chunk = 10
-
-    !$omp parallel shared(a, b, threads_cnt, chunk) private(thread_id, i)
-
-    thread_id = omp_get_thread_num()
-
-    if (thread_id .eq. 0) then
-        threads_cnt = omp_get_num_threads()
-    end if
-
-    curr_diff = 0
-    max_diff = 0
-
-    !$omp do schedule(static, chunk)
     do i = 1, n
-        curr_diff = a(i) - b(i);
+        do j = 1, n
+            cur_idx = (i - 1) * n + j
+            c(cur_idx) = 0
 
-        if (max_diff < curr_diff) then
-            max_diff = curr_diff
-            max_diff_idx = i;
-        else if (max_diff < -curr_diff) then
-            max_diff = -curr_diff
-            max_diff_idx = i;
-        end if
+            do k = 1, n
+                c(cur_idx) = c(cur_idx) + a((i - 1) * n + k) * b((k - 1) * n + j)
+            end do
+        end do
     end do
-    !$omp end parallel
 
-    compare_2_arrays = 0
+    calc_one_thread_float = 0
 
-end function compare_2_arrays
+end function calc_one_thread_float
 
-integer function fill_2_arrays(n, a, b) bind(C)
+integer function calc_one_thread_int(n, a, b, c) bind(C)
     use iso_c_binding
-    use omp_lib
     implicit none
     integer(c_int), value, intent(in) :: n
 
-    real(c_double), dimension(n), intent(inout) :: a, b
+    integer(c_int), dimension(n * n), intent(in) :: a, b
+    integer(c_int), dimension(n * n), intent(out) :: c
 
-    integer i, cur_idx, chunk, threads_cnt, thread_id
+    integer i, j, k, cur_idx
 
-    chunk = 10
-
-    !$omp parallel shared(a, b, threads_cnt, chunk) private(thread_id, i)
-
-    thread_id = omp_get_thread_num()
-
-    if (thread_id .eq. 0) then
-        threads_cnt = omp_get_num_threads()
-    end if
-
-    !$omp do schedule(static, chunk)
     do i = 1, n
-        call RANDOM_NUMBER(a(i))
-        call RANDOM_NUMBER(b(i))
+        do j = 1, n
+            cur_idx = (i - 1) * n + j
+            c(cur_idx) = 0
+
+            do k = 1, n
+                c(cur_idx) = c(cur_idx) + a((i - 1) * n + k) * b((k - 1) * n + j)
+            end do
+        end do
     end do
-    !$omp end parallel
 
-    fill_2_arrays = 0
+    calc_one_thread_int = 0
 
-end function fill_2_arrays
+end function calc_one_thread_int

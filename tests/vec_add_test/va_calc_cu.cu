@@ -26,7 +26,8 @@ void va_warm_up()
    cudaFree(warm_tmp);
 }
 
-__global__ void vec_add_kernel( double * a, double * b, double * c, int size )
+template<typename T>
+__global__ void vec_add_kernel( T * a, T * b, T * c, int size )
 {
    int bx = blockIdx.x;
    int tx = threadIdx.x;
@@ -36,20 +37,30 @@ __global__ void vec_add_kernel( double * a, double * b, double * c, int size )
    c[global_idx] = a[global_idx] + b[global_idx];
 }
 
-__global__ void vec_add_with_check_kernel( double * a, double * b, double * c, int size )
+template<typename T>
+__global__ void vec_add_with_check_kernel( T * a, T * b, T * c, int size )
 {
    int bx = blockIdx.x;
    int tx = threadIdx.x;
    
    int global_idx = bx * blockDim.x + tx;
    
+   T   a_val = a[global_idx]
+     , b_val = b[global_idx];
+   
    if (global_idx < size)
-      c[global_idx] = a[global_idx] + b[global_idx];
+   {
+      if (a_val > b_val)
+         c[global_idx] = a[global_idx];
+      else
+         c[global_idx] = b[global_idx];
+   }
 }
 
-int va_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, const double *& host_a, const double *& host_b, size_t size )
+template<typename T>
+int va_device_mem_alloc( T ** dev_a, T ** dev_b, T ** dev_c, const T *& host_a, const T *& host_b, size_t size )
 {
-   cudaError error = cudaMalloc((void **)dev_a, sizeof(double) * size);
+   cudaError error = cudaMalloc((void **)dev_a, sizeof(T) * size);
 
    if (error != cudaSuccess)
    {
@@ -57,7 +68,7 @@ int va_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
       return 0;
    }
 
-   error = cudaMalloc((void **)dev_b, sizeof(double) * size);
+   error = cudaMalloc((void **)dev_b, sizeof(T) * size);
 
    if (error != cudaSuccess)
    {
@@ -65,7 +76,7 @@ int va_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
       return 0;
    }
 
-   error = cudaMalloc((void **)dev_c, sizeof(double) * size);
+   error = cudaMalloc((void **)dev_c, sizeof(T) * size);
 
    if (error != cudaSuccess)
    {
@@ -73,7 +84,7 @@ int va_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
       return 0;
    }
 
-   error = cudaMemcpy(*dev_a, host_a, sizeof(double) * size, cudaMemcpyHostToDevice);
+   error = cudaMemcpy(*dev_a, host_a, sizeof(T) * size, cudaMemcpyHostToDevice);
 
    if (error != cudaSuccess)
    {
@@ -81,7 +92,7 @@ int va_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
       return 0;
    }
 
-   error = cudaMemcpy(*dev_b, host_b, sizeof(double) * size, cudaMemcpyHostToDevice);
+   error = cudaMemcpy(*dev_b, host_b, sizeof(T) * size, cudaMemcpyHostToDevice);
 
    if (error != cudaSuccess)
    {
@@ -92,11 +103,12 @@ int va_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
    return 1;
 }
 
-time_res_t vec_add( const double * a, const double * b, double * c, int block_size, size_t size )
+template<typename T>
+time_res_t vec_add( const T * a, const T * b, T *  c, int block_size, size_t size )
 {
-   double   * d_A = NULL
-          , * d_B = NULL
-          , * d_C = NULL;
+   T   * d_A = NULL
+     , * d_B = NULL
+     , * d_C = NULL;
 
    cudaError_t error;
    
@@ -106,7 +118,7 @@ time_res_t vec_add( const double * a, const double * b, double * c, int block_si
    
    time_res.measure_start();
    
-   va_device_mem_alloc(&d_A, &d_B, &d_C, a, b, size);
+   va_device_mem_alloc<T>(&d_A, &d_B, &d_C, a, b, size);
 
    time_res.mem_allocate_time_ = time_res.measure_finish();
 
@@ -125,7 +137,7 @@ time_res_t vec_add( const double * a, const double * b, double * c, int block_si
 
    time_res.measure_start();
 
-   vec_add_kernel<<< grid, threads >>>(d_A, d_B, d_C, size);
+   vec_add_kernel<T><<< grid, threads >>>(d_A, d_B, d_C, size);
 
    cudaDeviceSynchronize();
 
@@ -133,7 +145,7 @@ time_res_t vec_add( const double * a, const double * b, double * c, int block_si
 
    time_res.measure_start();
 
-   error = cudaMemcpy(c, d_C, sizeof(double) * size, cudaMemcpyDeviceToHost);
+   error = cudaMemcpy(c, d_C, sizeof(T) * size, cudaMemcpyDeviceToHost);
 
    time_res.mem_allocate_time_ += time_res.measure_finish();
 
@@ -152,11 +164,12 @@ time_res_t vec_add( const double * a, const double * b, double * c, int block_si
    return time_res;
 }
 
-time_res_t vec_add_with_check( const double * a, const double * b, double * c, int block_size, int size )
+template<typename T>
+time_res_t vec_add_with_check( const T * a, const T * b, T * c, int block_size, int size )
  {
-   double   * d_A = NULL
-          , * d_B = NULL
-          , * d_C = NULL;
+   T   * d_A = NULL
+     , * d_B = NULL
+     , * d_C = NULL;
 
    cudaError_t error;
    
@@ -166,7 +179,7 @@ time_res_t vec_add_with_check( const double * a, const double * b, double * c, i
    
    time_res.measure_start();
    
-   va_device_mem_alloc(&d_A, &d_B, &d_C, a, b, size);
+   va_device_mem_alloc<T>(&d_A, &d_B, &d_C, a, b, size);
 
    time_res.mem_allocate_time_ = time_res.measure_finish();
 
@@ -185,7 +198,7 @@ time_res_t vec_add_with_check( const double * a, const double * b, double * c, i
 
    time_res.measure_start();
 
-   vec_add_with_check_kernel<<< grid, threads >>>(d_A, d_B, d_C, size);
+   vec_add_with_check_kernel<T><<< grid, threads >>>(d_A, d_B, d_C, size);
 
    cudaDeviceSynchronize();
 
@@ -194,7 +207,7 @@ time_res_t vec_add_with_check( const double * a, const double * b, double * c, i
    time_res.measure_start();
 
    // Copy result from device to host
-   error = cudaMemcpy(c, d_C, sizeof(double) * size, cudaMemcpyDeviceToHost);
+   error = cudaMemcpy(c, d_C, sizeof(T) * size, cudaMemcpyDeviceToHost);
 
    time_res.mem_allocate_time_ += time_res.measure_finish();
 
@@ -213,7 +226,8 @@ time_res_t vec_add_with_check( const double * a, const double * b, double * c, i
    return time_res;
 }
 
-time_res_t va_calc_cu( int size, const double * a, const double * b, double * c )
+template<typename T>
+time_res_t va_calc( int size, const T * a, const T * b, T * c )
 {
    int devID = 0;
 
@@ -242,12 +256,13 @@ time_res_t va_calc_cu( int size, const double * a, const double * b, double * c 
    // Use a larger block size for Fermi and above
    int block_size = (deviceProp.major < 2) ? 16 : 32;
 
-   time_res_t duration = vec_add(a, b, c, block_size, size);
+   time_res_t duration = vec_add<T>(a, b, c, block_size, size);
 
    return duration;
 }
 
-time_res_t va_calc_cu_with_check( int size, const double * a, const double * b, double * c )
+template<typename T>
+time_res_t va_calc_with_check( int size, const T * a, const T * b, T * c )
 {
    int devID = 0;
 
@@ -279,4 +294,34 @@ time_res_t va_calc_cu_with_check( int size, const double * a, const double * b, 
    time_res_t duration = vec_add_with_check(a, b, c, block_size, size);
 
    return duration;
+}
+
+time_res_t va_calc_cu( int size, const float * a, const float * b, float * c )
+{
+   return va_calc<float>(size, a, b, c);
+}
+
+time_res_t va_calc_cu( int size, const double * a, const double * b, double * c )
+{
+   return va_calc<double>(size, a, b, c);
+}
+
+time_res_t va_calc_cu( int size, const int * a, const int * b, int * c )
+{
+   return va_calc<int>(size, a, b, c);
+}
+
+time_res_t va_calc_cu_wc( int size, const float * a, const float * b, float * c )
+{
+   return va_calc_with_check<float>(size, a, b, c);
+}
+
+time_res_t va_calc_cu_wc( int size, const double * a, const double * b, double * c )
+{
+   return va_calc_with_check<double>(size, a, b, c);
+}
+
+time_res_t va_calc_cu_wc( int size, const int * a, const int * b, int * c )
+{
+   return va_calc_with_check<int>(size, a, b, c);
 }

@@ -26,80 +26,26 @@ void mm_warm_up()
    cudaFree(warm_tmp);
 }
 
-template<int BLOCK_SIZE>
-__global__ void matrixMulCUDA(double *C, double *A, double *B, int wA, int wB)
+template<typename T, int BLOCK_SIZE>
+__global__ void mat_mul_kernel( T * C, T * A, T * B, int size)
 {
-   // Block index
-   int bx = blockIdx.x;
-   int by = blockIdx.y;
-
-   // Thread index
-   int tx = threadIdx.x;
-   int ty = threadIdx.y;
+   int i = blockDim.x * blockIdx.x + threadIdx.x;
+   int j = blockDim.y * blockIdx.y + threadIdx.y;
    
-   // Index of the first sub-matrix of A processed by the block
-   int aBegin = wA * BLOCK_SIZE * by;
-
-   // Index of the last sub-matrix of A processed by the block
-   int aEnd   = aBegin + wA - 1;
-
-   // Step size used to iterate through the sub-matrices of A
-   int aStep  = BLOCK_SIZE;
-
-   // Index of the first sub-matrix of B processed by the block
-   int bBegin = BLOCK_SIZE * bx;
-
-   // Step size used to iterate through the sub-matrices of B
-   int bStep  = BLOCK_SIZE * wB;
-
-   // Csub is used to store the element of the block sub-matrix
-   // that is computed by the thread
-   double Csub = 0;
-
-   // Loop over all the sub-matrices of A and B
-   // required to compute the block sub-matrix
-   for (int a = aBegin, b = bBegin; a <= aEnd; a += aStep, b += bStep)
+   if (i < size && j < size)
    {
-      // Declaration of the shared memory array As used to
-      // store the sub-matrix of A
-      __shared__ double As[BLOCK_SIZE][BLOCK_SIZE];
+      T res = 0;
 
-      // Declaration of the shared memory array Bs used to
-      // store the sub-matrix of B
-      __shared__ double Bs[BLOCK_SIZE][BLOCK_SIZE];
-
-      // Load the matrices from device memory
-      // to shared memory; each thread loads
-      // one element of each matrix
-      As[ty][tx] = A[a + wA * ty + tx];
-      Bs[ty][tx] = B[b + wB * ty + tx];
-
-      // Synchronize to make sure the matrices are loaded
-      __syncthreads();
-
-      // Multiply the two matrices together;
-      // each thread computes one element
-      // of the block sub-matrix
-#pragma unroll
-
-      for (int k = 0; k < BLOCK_SIZE; ++k)
-         Csub += As[ty][k] * Bs[k][tx];
-
-      // Synchronize to make sure that the preceding
-      // computation is done before loading two new
-      // sub-matrices of A and B in the next iteration
-      __syncthreads();
+      for (int k = 0; k < size; ++k)\
+         res += A[k + i * size] * B[j + k * size];
+      
+      C[i * size + j] = res;
    }
-
-   // Write the block sub-matrix to device memory;
-   // each thread writes one element
-   int c = wB * BLOCK_SIZE * by + BLOCK_SIZE * bx;
-   C[c + wB * ty + tx] = Csub;
 }
-
-int mm_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, const double *& host_a, const double *& host_b, size_t size )
+template<typename T>
+int mm_device_mem_alloc( T ** dev_a, T ** dev_b, T ** dev_c, const T *& host_a, const T *& host_b, size_t size )
 {
-   cudaError error = cudaMalloc((void **)dev_a, sizeof(double) * size);
+   cudaError error = cudaMalloc((void **)dev_a, sizeof(T) * size);
 
    if (error != cudaSuccess)
    {
@@ -107,7 +53,7 @@ int mm_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
       return 0;
    }
 
-   error = cudaMalloc((void **)dev_b, sizeof(double) * size);
+   error = cudaMalloc((void **)dev_b, sizeof(T) * size);
 
    if (error != cudaSuccess)
    {
@@ -115,7 +61,7 @@ int mm_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
       return 0;
    }
 
-   error = cudaMalloc((void **)dev_c, sizeof(double) * size);
+   error = cudaMalloc((void **)dev_c, sizeof(T) * size);
 
    if (error != cudaSuccess)
    {
@@ -123,7 +69,7 @@ int mm_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
       return 0;
    }
 
-   error = cudaMemcpy(*dev_a, host_a, sizeof(double) * size, cudaMemcpyHostToDevice);
+   error = cudaMemcpy(*dev_a, host_a, sizeof(T) * size, cudaMemcpyHostToDevice);
 
    if (error != cudaSuccess)
    {
@@ -131,7 +77,7 @@ int mm_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
       return 0;
    }
 
-   error = cudaMemcpy(*dev_b, host_b, sizeof(double) * size, cudaMemcpyHostToDevice);
+   error = cudaMemcpy(*dev_b, host_b, sizeof(T) * size, cudaMemcpyHostToDevice);
 
    if (error != cudaSuccess)
    {
@@ -142,10 +88,11 @@ int mm_device_mem_alloc( double ** dev_a, double ** dev_b, double ** dev_c, cons
    return 1;
 }
 
-time_res_t matrixMultiply(const double * a, const double * b, double * c, int block_size, int size)
+template<typename T>
+time_res_t matrixMultiply(const T * a, const T * b, T * c, int block_size, int size)
 {
    // Allocate device memory
-   double *d_A, *d_B, *d_C;
+   T *d_A, *d_B, *d_C;
 
    cudaError_t error;
    
@@ -155,7 +102,7 @@ time_res_t matrixMultiply(const double * a, const double * b, double * c, int bl
    
    time_res.measure_start();
    
-   mm_device_mem_alloc(&d_A, &d_B, &d_C, a, b, size * size);
+   mm_device_mem_alloc<T>(&d_A, &d_B, &d_C, a, b, size * size);
 
    time_res.mem_allocate_time_ = time_res.measure_finish();
 
@@ -166,9 +113,9 @@ time_res_t matrixMultiply(const double * a, const double * b, double * c, int bl
    time_res.measure_start();
 
    if (block_size == 32)
-      matrixMulCUDA<32><<< grid, threads >>>(d_C, d_A, d_B, size, size);
+      mat_mul_kernel<T, 32><<< grid, threads >>>(d_C, d_A, d_B, size);
    else if (block_size == 16)
-      matrixMulCUDA<16><<< grid, threads >>>(d_C, d_A, d_B, size, size);
+      mat_mul_kernel<T, 16><<< grid, threads >>>(d_C, d_A, d_B, size);
 
    cudaDeviceSynchronize();
 
@@ -177,7 +124,7 @@ time_res_t matrixMultiply(const double * a, const double * b, double * c, int bl
    time_res.measure_start();
    
    // Copy result from device to host
-   error = cudaMemcpy(c, d_C, sizeof(double) * size * size, cudaMemcpyDeviceToHost);
+   error = cudaMemcpy(c, d_C, sizeof(T) * size * size, cudaMemcpyDeviceToHost);
 
    time_res.mem_allocate_time_ += time_res.measure_finish();
 
@@ -196,7 +143,8 @@ time_res_t matrixMultiply(const double * a, const double * b, double * c, int bl
    return time_res;
 }
 
-time_res_t mm_calc_cu( int size, const double * a, const double * b, double * c )
+template<typename T>
+time_res_t mm_calc( int size, const T * a, const T * b, T * c )
 {
    int devID = 0;
 
@@ -225,7 +173,22 @@ time_res_t mm_calc_cu( int size, const double * a, const double * b, double * c 
    // Use a larger block size for Fermi and above
    int block_size = (deviceProp.major < 2) ? 16 : 32;
 
-   time_res_t duration = matrixMultiply(a, b, c, block_size, size);
+   time_res_t duration = matrixMultiply<T>(a, b, c, block_size, size);
 
    return duration;
+}
+
+time_res_t mm_calc_cu( int size, const double * a, const double * b, double * c )
+{
+   return mm_calc<double>(size, a, b, c);
+}
+
+time_res_t mm_calc_cu( int size, const float * a, const float * b, float * c )
+{
+   return mm_calc<float>(size, a, b, c);
+}
+
+time_res_t mm_calc_cu( int size, const int * a, const int * b, int * c )
+{
+   return mm_calc<int>(size, a, b, c);
 }

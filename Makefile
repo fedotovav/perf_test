@@ -11,14 +11,16 @@ CU_TEST_SRCS  += $(addprefix $(TEST_SRC_DIR)/, va_calc_cu.cu)
 OMP_TEST_SRCS = $(addprefix $(TEST_SRC_DIR)/, mm_calc_f.f08)
 OCL_TEST_SRC  = $(addprefix $(TEST_SRC_DIR)/, mm_calc_ocl.cpp)
 CPP_SRCS = test.cpp main.cpp
+FORT_SRCS = utils.f08
 
 OBJS  = $(addprefix $(OBJ_DIR)/, $(notdir $(OMP_TEST_SRCS:.f08=.o)))
 OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CU_TEST_SRCS:.cu=.o)))
 OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(OCL_TEST_SRC:.cpp=.o)))
 OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CPP_SRCS:.cpp=.o)))
+OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(FORT_SRCS:.f08=.o)))
 
-DBG_FLAGS = #-g
-RLS_FLAGS = -Ofast
+DBG_FLAGS = -g
+RLS_FLAGS = #-Ofast
 
 GF_FLAGS = -fopenmp -std=f2008 $(DBG_FLAGS) $(RLS_FLAGS)
 CU_FLAGS = -gencode arch=compute_20,code=compute_20 -std=c++11 $(DBG_FLAGS)
@@ -46,6 +48,9 @@ $(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(MAT_MUL_SRC_DIR)/%.cpp
 
 $(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(MAT_MUL_SRC_DIR)/%.cu
 	/usr/local/cuda/bin/nvcc -c $< -o $@ $(CU_FLAGS)
+
+$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/%.f08
+	gfortran -c $< -o $@ $(GF_FLAGS)
 
 $(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(MAT_MUL_SRC_DIR)/%.f08
 	gfortran -c $< -o $@ $(GF_FLAGS)
