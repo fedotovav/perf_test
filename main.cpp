@@ -1,6 +1,6 @@
-#include "tests/mat_mul_test/mat_mul_test.h"
+#include "tests/tridiagonal_test/tridiagonal_test.h"
 
 int main( int argc, char ** argv )
 {
-   return run_matr_mul_test(argc, argv);
+   return run_tridiagonal_test(argc, argv);
 }

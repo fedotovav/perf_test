@@ -75,7 +75,7 @@ private:
 template<typename T> class test_unit_t
 {
 public:
-   typedef time_res_t(* calc_func_t)  ( int size, const T * a, const T * b, T * c );
+   typedef time_res_t(* calc_func_t)  ( int size, const T * a, const T * b, const T * c, const T * d, T * e );
    
    test_unit_t(const string & test_name, const calc_func_t & calc_func, const string & output_file_name
               ,const string & cmd_line_par_name, int is_fake_test = 0 );
@@ -116,7 +116,7 @@ public:
    virtual size_t      size_by_measure_idx( size_t meas_idx );
    virtual void        print_measere_info ( size_t size );
    virtual test_data_t prepare_data       ( size_t size );
-   virtual void        write_data_to_file ( ofstream & output_file, const T * data, size_t size );
+   virtual void        write_data_to_file ( ofstream & output_file, const test_data_t data, size_t size );
    virtual void        clear_data         ( test_data_t data );
    virtual void        compare_res        ( size_t size, size_t golden_test_idx );
    virtual void        remove_tmp_files   ( const test_units_t tests );
@@ -179,13 +179,13 @@ int test_unit_t<T>::is_fake() const
 
 template<typename T>
 test_t<T>::test_t( int argc, char ** argv, const string & test_name, test_units_t tests ) :
-     max_data_size_       (0)
-   , matr_size_limit_     (0)
-   , measurement_cnt_     (0)
-   , output_file_name_    ("default")
-   , goloden_test_idx_    (-1)
-   , test_name_           (test_name)
-   , measure_precision_   (1)
+     max_data_size_    (0)
+   , matr_size_limit_  (0)
+   , measurement_cnt_  (0)
+   , output_file_name_ ("default")
+   , goloden_test_idx_ (-1)
+   , test_name_        (test_name)
+   , measure_precision_(1)
 {
    po::options_description head_description("Computing technologies performance test\n Author: Anton Fedotov");
 
@@ -323,10 +323,27 @@ void test_t<T>::compare_res( size_t size, size_t golden_test_idx )
 }
 
 template<typename T>
-void test_t<T>::write_data_to_file( ofstream & output_file, const T * data, size_t size )
+void test_t<T>::write_data_to_file( ofstream & output_file, const test_data_t data, size_t size )
 {
    for (int i = 0; i < size; ++i)
-      output_file << data[i] << " ";
+      output_file << data.get()[0][i] << " ";
+}
+
+template< typename T >
+T check( size_t size, const T * sub, const T * diag, const T * super, const T * right, const T * solution ) 
+{
+   T   max_err = right[0] - (diag[0] * solution[0] + super[0] * solution[1])
+     , tmp_val;
+   
+   for (size_t i = 1; i < size - 1; ++i)
+   {
+      tmp_val = right[i] - (sub[i - 1] * solution[i - 1] + diag[i] * solution[i] + super[i] * solution[i + 1]);
+
+      if (tmp_val > max_err)
+         max_err = tmp_val;
+   }
+   
+   return max_err;
 }
 
 template<typename T>
@@ -341,31 +358,33 @@ void test_t<T>::measurement( test_data_t data, int size, ofstream & res_file, in
       if (!tests_->at(i).is_fake())
          cout << "call " << tests_->at(i).name() << endl;
 
-      duration = tests_->at(i).calc_func(size, data.get()[0], data.get()[1], data.get()[2]);
+      duration = tests_->at(i).calc_func(size, data.get()[0], data.get()[1], data.get()[2], data.get()[3], data.get()[4]);
 
       if (tests_->at(i).is_fake())
-         return;
+         continue;
       
       for (size_t k = 0; k < measure_precision_ - 1; ++k)
-         duration += tests_->at(i).calc_func(size, data.get()[0], data.get()[1], data.get()[2]);
+         duration += tests_->at(i).calc_func(size, data.get()[0], data.get()[1], data.get()[2], data.get()[3], data.get()[4]);
          
       duration /= measure_precision_;
 
       cout << "computation time: " << duration.computing_time_ << " ms" << endl;
       cout << "memory allocation time: " << duration.mem_allocate_time_ << " ms" << endl;
-      cout << "total time: " << duration.mem_allocate_time_ + duration.computing_time_ << " ms" << endl << endl;
+      cout << "total time: " << duration.mem_allocate_time_ + duration.computing_time_ << " ms" << endl;
       
       res_file << duration.computing_time_ << "\t" << duration.mem_allocate_time_
                << "\t" << duration.mem_allocate_time_ + duration.computing_time_ << "\t";
       
-      if (need_check_file)
-      {
-         ofstream output_file(tests_->at(i).check_file());
+      cout << "Maximum error: " << check<T>(size, data.get()[0], data.get()[1], data.get()[2], data.get()[3], data.get()[4]) << endl << endl;
 
-         write_data_to_file(output_file, data.get()[2], size);
-
-         output_file.close();
-      }
+//      if (need_check_file)
+//      {
+//         ofstream output_file(tests_->at(i).check_file());
+//
+//         write_data_to_file(output_file, data, size);
+//
+//         output_file.close();
+//      }
    }
    
    res_file << endl;
@@ -388,7 +407,6 @@ void test_t<T>::print_measere_info( size_t size )
    cout << "measurement typical size: " << size << " elements, " << " (" << sizeof(T) * size / 1048576. << " mb)" << endl;
 }
 
-// fix it
 template<typename T>
 typename test_t<T>::test_data_t test_t<T>::prepare_data( size_t size )
 {
