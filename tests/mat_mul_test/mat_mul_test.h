@@ -156,6 +156,10 @@ time_res_t mm_calc_cpp( int size, const double * a, const double * b, double * c
 time_res_t mm_calc_cpp( int size, const float * a, const float * b, float * c );
 time_res_t mm_calc_cpp( int size, const int * a, const int * b, int * c );
 
+time_res_t mm_calc_cu_with_shared_mem( int size, const double * a, const double * b, double * c );
+time_res_t mm_calc_cu_with_shared_mem( int size, const float * a, const float * b, float * c );
+time_res_t mm_calc_cu_with_shared_mem( int size, const int * a, const int * b, int * c );
+
 template<typename T>
 typename test_t<T>::test_units_t tests_init()
 {
@@ -170,13 +174,16 @@ typename test_t<T>::test_units_t tests_init()
    unit_test = test_unit_t<T>("CUDA test", mm_calc_cu, "cuda.test", "cuda");
    tests->push_back(unit_test);
 
+   unit_test = test_unit_t<T>("CUDA with shared memory test", mm_calc_cu_with_shared_mem, "cuda_wsm.test", "cudawsm");
+   tests->push_back(unit_test);
+
    unit_test = test_unit_t<T>("OpenMP four thread test", calc_four_thread_fort, "omp_4t.test", "openmp4t");
    tests->push_back(unit_test);
 
    unit_test = test_unit_t<T>("OpenMP two thread test", calc_two_thread_fort, "omp_2t.test", "openmp2t");
    tests->push_back(unit_test);
 
-   unit_test = test_unit_t<T>("Fortran test", calc_one_thread_fort, "f.test", "fortran");
+   unit_test = test_unit_t<T>("OpenMP one thread test", calc_one_thread_fort, "omp_1t.test", "openmp1t");
    tests->push_back(unit_test);
 
 //   unit_test = test_unit_t<T>("OpenCL test", calc_ocl, "cl.test", "opencl");
@@ -185,10 +192,10 @@ typename test_t<T>::test_units_t tests_init()
    return tests;
 }
 
-int run_matr_mul_test( int argc, char ** argv )
+int run_mat_mul_test( int argc, char ** argv )
 {
    try{
-      mat_mul_test_t<double> mat_mul_test(argc, argv, "matr_mul_test", tests_init<double>());
+      mat_mul_test_t<int> mat_mul_test(argc, argv, "matr_mul_test", tests_init<int>());
 
       mat_mul_test.run();
    }
