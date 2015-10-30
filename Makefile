@@ -5,19 +5,24 @@ OBJ_DIR         = obj
 TEST_SRC_DIR    = tests
 MAT_MUL_SRC_DIR = mat_mul_test
 VEC_ADD_SRC_DIR = vec_add_test
+TRIDIAG_SRC_DIR = tridiagonal_test
 
 CU_TEST_SRCS  = $(addprefix $(TEST_SRC_DIR)/, mm_calc_cu.cu)
 CU_TEST_SRCS  += $(addprefix $(TEST_SRC_DIR)/, va_calc_cu.cu)
+CU_TEST_SRCS  += $(addprefix $(TEST_SRC_DIR)/, t_gpu_calc.cu)
+CU_TEST_SRCS  += $(addprefix $(TEST_SRC_DIR)/, t_cpu_gpu_calc.cu)
 OMP_TEST_SRCS = $(addprefix $(TEST_SRC_DIR)/, mm_calc_f.f08)
 OCL_TEST_SRC  = $(addprefix $(TEST_SRC_DIR)/, mm_calc_ocl.cpp)
+T_TEST_SRC    = $(addprefix $(TRIDIAG_SRC_DIR)/, t_cpu_calc.cpp)
 CPP_SRCS = test.cpp main.cpp
 FORT_SRCS = utils.f08
 
 OBJS  = $(addprefix $(OBJ_DIR)/, $(notdir $(OMP_TEST_SRCS:.f08=.o)))
-OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CU_TEST_SRCS:.cu=.o)))
 OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(OCL_TEST_SRC:.cpp=.o)))
 OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CPP_SRCS:.cpp=.o)))
 OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(FORT_SRCS:.f08=.o)))
+OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(T_TEST_SRC:.cpp=.o)))
+OBJS += $(addprefix $(OBJ_DIR)/, $(notdir $(CU_TEST_SRCS:.cu=.o)))
 
 DBG_FLAGS = -g
 RLS_FLAGS = #-Ofast -O2
@@ -45,6 +50,12 @@ $(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/%.cpp
 
 $(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(MAT_MUL_SRC_DIR)/%.cpp
 	g++ -c $< -o $@ -pg $(CPP_INCLUDE) $(CPP_FLAGS) 
+
+$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(TRIDIAG_SRC_DIR)/%.cpp
+	g++ -c $< -o $@ -pg $(CPP_INCLUDE) $(CPP_FLAGS) 
+
+$(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(TRIDIAG_SRC_DIR)/%.cu
+	/usr/local/cuda/bin/nvcc -c $< -o $@ $(CU_FLAGS)
 
 $(OBJ_DIR)/%.o: $(TEST_SRC_DIR)/$(MAT_MUL_SRC_DIR)/%.cu
 	/usr/local/cuda/bin/nvcc -c $< -o $@ $(CU_FLAGS)

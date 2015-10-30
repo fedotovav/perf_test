@@ -72,12 +72,24 @@ private:
    chrono::time_point<chrono::system_clock> time_start_, time_finish_;
 };
 
+template< typename T >
+struct matrix_t
+{
+   T   * sub_diag_
+     , * diag_
+     , * super_diag_
+     , * right_prt_
+     , * solution_;
+};
+
+template<typename T> using test_data_t = shared_ptr<matrix_t<T>>;
+
 template<typename T> class test_unit_t
 {
 public:
-   typedef time_res_t(* calc_func_t)  ( int size, const T * a, const T * b, const T * c, const T * d, T * e );
+   typedef time_res_t (* calc_func_t)( size_t size, test_data_t<T> & data );
    
-   test_unit_t(const string & test_name, const calc_func_t & calc_func, const string & output_file_name
+   test_unit_t(const string & test_name, calc_func_t const & calc_func, const string & output_file_name
               ,const string & cmd_line_par_name, int is_fake_test = 0 );
    
    const string & check_file  () const;
@@ -110,16 +122,15 @@ private:
 template<typename T> class test_t
 {
 public:
-   typedef shared_ptr<T *>                    test_data_t;
    typedef shared_ptr<vector<test_unit_t<T>>> test_units_t;
 
-   virtual size_t      size_by_measure_idx( size_t meas_idx );
-   virtual void        print_measere_info ( size_t size );
-   virtual test_data_t prepare_data       ( size_t size );
-   virtual void        write_data_to_file ( ofstream & output_file, const test_data_t data, size_t size );
-   virtual void        clear_data         ( test_data_t data );
-   virtual void        compare_res        ( size_t size, size_t golden_test_idx );
-   virtual void        remove_tmp_files   ( const test_units_t tests );
+   virtual size_t         size_by_measure_idx( size_t meas_idx );
+   virtual void           print_measere_info ( size_t size );
+   virtual test_data_t<T> prepare_data       ( size_t size );
+   virtual void           write_data_to_file ( ofstream & output_file, test_data_t<T> const & data, size_t size );
+   virtual void           clear_data         ( test_data_t<T> & data, size_t size );
+   virtual void           compare_res        ( size_t size, size_t golden_test_idx );
+   virtual void           remove_tmp_files   ( test_units_t const & tests );
 
    test_t( int argc, char ** argv, const string & test_name, const test_units_t tests );
    
@@ -127,7 +138,7 @@ public:
    
 protected:
    
-   virtual void measurement( test_data_t data, int size, ofstream & res_file, int need_check_file );
+   virtual void measurement( test_data_t<T> data, int size, ofstream & res_file, int need_check_file );
 
    test_units_t tests_;
    
@@ -143,7 +154,7 @@ protected:
 };
 
 template<typename T>
-test_unit_t<T>::test_unit_t( const string & test_name, const calc_func_t & func, const string & output_file_name
+test_unit_t<T>::test_unit_t( const string & test_name, calc_func_t const & func, const string & output_file_name
                             ,const string & cmd_line_par_name, int is_fake_test ) :
      test_name_        (test_name)
    , calc_func         (func)
@@ -323,31 +334,32 @@ void test_t<T>::compare_res( size_t size, size_t golden_test_idx )
 }
 
 template<typename T>
-void test_t<T>::write_data_to_file( ofstream & output_file, const test_data_t data, size_t size )
+void test_t<T>::write_data_to_file( ofstream & output_file, test_data_t<T> const & data, size_t size )
 {
-   for (int i = 0; i < size; ++i)
-      output_file << data.get()[0][i] << " ";
+//   for (int i = 0; i < size; ++i)
+//      output_file << data.get()[0][i] << " ";
 }
 
 template< typename T >
-T check( size_t size, const T * sub, const T * diag, const T * super, const T * right, const T * solution ) 
+T check( size_t size, test_data_t<T> const & data ) 
 {
-   T   max_err = right[0] - (diag[0] * solution[0] + super[0] * solution[1])
-     , tmp_val;
-   
-   for (size_t i = 1; i < size - 1; ++i)
-   {
-      tmp_val = right[i] - (sub[i - 1] * solution[i - 1] + diag[i] * solution[i] + super[i] * solution[i + 1]);
-
-      if (tmp_val > max_err)
-         max_err = tmp_val;
-   }
+   T   max_err;
+//   = right[0] - (diag[0] * solution[0] + super[0] * solution[1])
+//     , tmp_val;
+//   
+//   for (size_t i = 1; i < size - 1; ++i)
+//   {
+//      tmp_val = right[i] - (sub[i - 1] * solution[i - 1] + diag[i] * solution[i] + super[i] * solution[i + 1]);
+//
+//      if (tmp_val > max_err)
+//         max_err = tmp_val;
+//   }
    
    return max_err;
 }
 
 template<typename T>
-void test_t<T>::measurement( test_data_t data, int size, ofstream & res_file, int need_check_file )
+void test_t<T>::measurement( test_data_t<T> data, int size, ofstream & res_file, int need_check_file )
 {
    res_file << size << "\t";
 
@@ -358,13 +370,13 @@ void test_t<T>::measurement( test_data_t data, int size, ofstream & res_file, in
       if (!tests_->at(i).is_fake())
          cout << "call " << tests_->at(i).name() << endl;
 
-      duration = tests_->at(i).calc_func(size, data.get()[0], data.get()[1], data.get()[2], data.get()[3], data.get()[4]);
+      duration = tests_->at(i).calc_func(size, data);
 
       if (tests_->at(i).is_fake())
          continue;
       
       for (size_t k = 0; k < measure_precision_ - 1; ++k)
-         duration += tests_->at(i).calc_func(size, data.get()[0], data.get()[1], data.get()[2], data.get()[3], data.get()[4]);
+         duration += tests_->at(i).calc_func(size, data);
          
       duration /= measure_precision_;
 
@@ -375,7 +387,7 @@ void test_t<T>::measurement( test_data_t data, int size, ofstream & res_file, in
       res_file << duration.computing_time_ << "\t" << duration.mem_allocate_time_
                << "\t" << duration.mem_allocate_time_ + duration.computing_time_ << "\t";
       
-      cout << "Maximum error: " << check<T>(size, data.get()[0], data.get()[1], data.get()[2], data.get()[3], data.get()[4]) << endl << endl;
+      cout << "Maximum error: " << check<T>(size, data) << endl << endl;
 
 //      if (need_check_file)
 //      {
@@ -408,31 +420,32 @@ void test_t<T>::print_measere_info( size_t size )
 }
 
 template<typename T>
-typename test_t<T>::test_data_t test_t<T>::prepare_data( size_t size )
+test_data_t<T> test_t<T>::prepare_data( size_t size )
 {
-   test_data_t data(new T*[3]);
+   test_data_t<T> data;//(new T*[3]);
 
-   data.get()[0] = new T[size];
-   data.get()[1] = new T[size];
-   data.get()[2] = new T[size];
-   
-   fill_2_arrays(size, data.get()[0], data.get()[1]);
+//   data.get()[0] = new T[size];
+//   data.get()[1] = new T[size];
+//   data.get()[2] = new T[size];
+//   
+//   fill_2_arrays(size, data.get()[0], data.get()[1]);
    
    return data;
 }
 
 template<typename T>
-void test_t<T>::clear_data( test_data_t data )
+void test_t<T>::clear_data( test_data_t<T> & data, size_t size )
 {
-   delete[] data.get()[0];
-   delete[] data.get()[1];
-   delete[] data.get()[2];
-   
+//   for 
+//   delete[] data.get()[0];
+//   delete[] data.get()[1];
+//   delete[] data.get()[2];
+//   
    data.reset();
 }
 
 template<typename T>
-void test_t<T>::remove_tmp_files( const test_units_t tests )
+void test_t<T>::remove_tmp_files( test_units_t const & tests )
 {
    for (size_t i = 0; i < tests->size(); ++i)
       if (!tests->at(i).check_file().empty())
@@ -474,14 +487,14 @@ void test_t<T>::run()
       
       print_measere_info(size);
 
-      test_data_t data = prepare_data(size);
+      test_data_t<T> data = prepare_data(size);
       
       if (goloden_test_idx_ < 0)
          need_check_file = 0;
       
       measurement(data, size, result_file, need_check_file);
       
-      clear_data(data);
+      clear_data(data, size);
 
       if (goloden_test_idx_ != -1)
          compare_res(size, goloden_test_idx_);
